@@ -1,0 +1,17 @@
+\begin{table}[h]
+\centering
+\caption{Initial checkpoint results on a 100-sentence FLORES-200 devtest pilot subset.}
+\label{tab:checkpoint-results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrl}
+\toprule
+Model & Direction & BLEU & chrF & Status \\
+\midrule
+Copy Baseline & TR$\rightarrow$EN & 2.82 & 21.16 & Complete \\
+Pretrained MT Reference (Helsinki-NLP/opus-mt-tr-en) & TR$\rightarrow$EN & 30.21 & 58.97 & Complete \\
+Copy Baseline & EN$\rightarrow$TR & 2.83 & 20.02 & Complete \\
+Pretrained MT Reference (Helsinki-NLP/opus-mt-tc-big-en-tr) & EN$\rightarrow$TR & 31.08 & 61.50 & Complete \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

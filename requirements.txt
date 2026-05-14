@@ -1,0 +1,7 @@
+transformers
+sacrebleu
+sentencepiece
+sacremoses
+pandas
+tqdm
+torch

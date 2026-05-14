@@ -1,0 +1,4 @@
+direction,source,reference,pretrained_mt_output
+TR->EN,"Daha önce diyabetik olup şimdi diyabetik olmayan dört aylık farelerimiz var.","We now have 4-month-old mice that are non-diabetic that used to be diabetic.","We've had four months of rats before, which were not diabetic."
+TR->EN,"Halifax, Nova Scotia'daki Dalhousie Üniversitesi'nde tıp profesörü Dr. Ehud Ur...","Dr. Ehud Ur, professor of medicine at Dalhousie University in Halifax, Nova Scotia...","Dr. Ehud Ur, a medical professor at the University..."
+EN->TR,"Like some other experts, he is skeptical about...","Bazı diğer uzmanlar gibi o da, bu bulguların zamanında...","Diğer bazı uzmanlar gibi, diyabetin tedavi edil..."
