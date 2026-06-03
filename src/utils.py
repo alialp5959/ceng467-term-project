@@ -82,9 +82,13 @@ def mount_drive_if_colab():
     try:
         import google.colab          # noqa: F401
         from google.colab import drive
+        import os
+        # If already mounted, skip calling drive.mount()
+        if os.path.exists("/content/drive/MyDrive"):
+            return True
         drive.mount("/content/drive")
         return True
-    except ImportError:
+    except Exception:
         return False
 
 
