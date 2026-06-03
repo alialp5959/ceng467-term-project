@@ -1,0 +1,100 @@
+# ============================================================
+#  CENG467 UNMT Project — Central Configuration
+#  Group 9: Ali Alp Haraç & İhsan Yağız Sakızlıoğlu
+# ============================================================
+#  All scripts read this file via src/utils.py → load_config().
+#  For local development, override base_dir with:
+#    python src/preprocess.py --base-dir .
+# ============================================================
+
+project:
+  name: "CENG467_UNMT_TR_EN"
+  seed: 42
+
+# ── Paths ───────────────────────────────────────────────────
+# Default: Google Drive shared folder (Colab collaboration).
+# Each teammate's Colab mounts the same shared Drive folder,
+# so checkpoints and data are instantly accessible to both.
+paths:
+  base_dir: "/content/drive/MyDrive/CENG467_Project"
+
+# ── Data ────────────────────────────────────────────────────
+data:
+  source: "cc100"                    # HuggingFace dataset name
+  languages: ["tr", "en"]
+  max_sentences: 1000000             # 1M sentences per language
+  raw_subdir: "data/raw"
+  processed_subdir: "data/processed"
+
+# ── Preprocessing ───────────────────────────────────────────
+preprocessing:
+  unicode_norm: "NFKC"
+  min_tokens: 3                      # Min whitespace-split tokens
+  max_tokens: 100                    # Max whitespace-split tokens
+  lowercase: false                   # Disabled by default (Turkish I/ı risk)
+  turkish_lowercase: true            # If lowercase=true, use TR-aware rules
+  remove_urls: true
+  remove_html: true
+  max_special_char_ratio: 0.3        # Drop lines with >30% non-alphanumeric
+  dedup: true
+
+# ── Vocabulary ──────────────────────────────────────────────
+vocab:
+  type: "unigram"                    # "bpe" or "unigram"
+  size: 32000                        # Joint vocab size
+  character_coverage: 0.9995
+  model_prefix: "spm"               # → spm.model + spm.vocab
+
+# ── Model (Lightweight Transformer for Colab T4) ───────────
+model:
+  type: "transformer"
+  num_layers: 4                      # Encoder AND decoder depth
+  d_model: 512
+  n_heads: 8
+  d_ff: 2048
+  dropout: 0.1
+  max_seq_len: 128
+  share_embeddings: true             # Shared input/output embeddings
+  language_tokens: ["<TR>", "<EN>"]
+
+# ── Noise (Denoising Autoencoder) ───────────────────────────
+noise:
+  word_dropout: 0.1                  # Probability of dropping a token
+  word_shuffle_k: 3                  # Max shuffle distance
+  word_mask: 0.1                     # Probability of masking a token
+  mask_token: "<MASK>"
+
+# ── Training ────────────────────────────────────────────────
+training:
+  batch_size: 32
+  gradient_accumulation_steps: 4     # Effective batch = 32 × 4 = 128
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  warmup_steps: 4000
+  max_epochs: 20
+  checkpoint_every_n_steps: 2000     # Save model + optimizer state
+  checkpoint_subdir: "checkpoints"
+  log_every_n_steps: 100
+  fp16: true                         # Mixed precision for T4 VRAM
+
+# ── Back-Translation ───────────────────────────────────────
+backtranslation:
+  iterations: [1, 3, 5, 10]         # Ablation checkpoints
+  beam_size: 4
+  synthetic_subdir: "data/synthetic"
+
+# ── Word-by-Word Baseline ──────────────────────────────────
+baseline:
+  embeddings_subdir: "data/embeddings"    # Where aligned vectors are cached
+  max_vocab: 50000                        # Top-N words loaded per language
+  dict_batch_size: 1024                   # NN batch size for dict building
+  dict_cache_subdir: "data/dictionaries"  # Cached bilingual dictionaries
+
+# ── Evaluation ──────────────────────────────────────────────
+evaluation:
+  flores_dir: "flores200_dataset/devtest"
+  source_files:
+    tr: "tur_Latn.devtest"
+    en: "eng_Latn.devtest"
+  results_subdir: "results"
+  pilot_n: 100

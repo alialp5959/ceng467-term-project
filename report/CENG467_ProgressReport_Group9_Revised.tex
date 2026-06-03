@@ -1,0 +1,334 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{float}
+
+\geometry{a4paper, margin=1in}
+\setlist[itemize]{leftmargin=1.5em}
+\setlist[enumerate]{leftmargin=1.5em}
+
+\title{\textbf{Progress Report CENG 467 -- Group 9}\\
+\large Unsupervised Neural Machine Translation for Turkish--English Using Monolingual Corpora\\
+\large Term Project Progress Report / Technical Checkpoint}
+\author{Ali Alp Haraç -- 290201040\\
+İhsan Yağız Sakızlıoğlu -- 300201071\\
+CENG 467 -- Natural Language Understanding and Generation}
+\date{May 14, 2026}
+
+\begin{document}
+\maketitle
+
+\section{Project Title, Group Members, and Problem Definition}
+
+\textbf{Project title.} Unsupervised Neural Machine Translation for Turkish--English Using Monolingual Corpora.
+
+\textbf{Group members.} Ali Alp Haraç (290201040) and İhsan Yağız Sakızlıoğlu (300201071).
+
+\textbf{Task description.} This project investigates unsupervised neural machine translation (UNMT) for the Turkish--English language pair. The objective is to build a translation system that can translate sentences between Turkish and English without using parallel sentence pairs during model training. The system receives a sentence in one language as input and generates a fluent, meaning-preserving translation in the other language. This is formulated as a sequence-to-sequence generation task where the model must learn cross-lingual mappings from monolingual corpora.
+
+\textbf{Motivation.} High-quality parallel corpora are expensive and time-consuming to construct. For many language pairs, including Turkish--English, large-scale sentence-aligned datasets remain more limited than for resource-rich pairs such as French--English or German--English. Turkish introduces additional challenges due to agglutinative morphology, flexible word order, and rich inflectional structure. A successful unsupervised approach would reduce dependence on costly sentence-level annotation and make neural machine translation more practical in low-resource settings.
+
+\textbf{Technical challenges.} The main technical challenges are:
+\begin{itemize}
+    \item \textbf{Cross-lingual alignment:} mapping Turkish and English representations into a shared semantic space without direct bilingual supervision.
+    \item \textbf{Semantic preservation:} generating translations that preserve the meaning of the source sentence.
+    \item \textbf{Fluency:} producing grammatically correct and natural target-language output.
+    \item \textbf{Turkish morphology:} handling many surface forms created by suffixation and inflection.
+    \item \textbf{Long sentences:} maintaining coherence and adequacy as sentence length increases.
+    \item \textbf{Hallucination:} avoiding fluent but unrelated or factually incorrect translations.
+\end{itemize}
+
+The topic has not changed since the proposal stage. The current checkpoint focuses on validating the evaluation pipeline and running initial baselines before full UNMT training.
+
+\section{Dataset / Benchmark Status}
+
+\subsection{Training Data: Monolingual Corpora}
+
+Since the project follows an unsupervised paradigm, no parallel sentence pairs will be used for training the proposed model. The planned training data source is:
+
+\begin{itemize}
+    \item \textbf{CC-100 via OPUS:} large-scale Common Crawl based monolingual text collections for Turkish and English.
+\end{itemize}
+
+The target scale is approximately 1--5 million sentences per language, depending on availability and computational constraints. Each corpus will be stored as plain-text files with one UTF-8 encoded sentence per line. The full monolingual data download and cleaning process is still in progress, but the preprocessing design has been finalized.
+
+\subsection{Evaluation Data: FLORES-200}
+
+For evaluation only, we use the FLORES-200 devtest benchmark. FLORES-200 provides high-quality multi-way parallel sentence pairs for many languages, including Turkish and English. In our project, this dataset is used strictly for testing and metric computation, not for training the unsupervised system.
+
+At the checkpoint stage, we used a 100-sentence pilot subset of FLORES-200 devtest to validate data loading, output formatting, and BLEU/chrF evaluation. The full devtest set will be used in the final evaluation.
+
+\subsection{Preprocessing Pipeline}
+
+The planned preprocessing pipeline for the monolingual corpora includes:
+\begin{enumerate}
+    \item Unicode normalization and whitespace standardization.
+    \item Empty line and malformed sentence removal.
+    \item Duplicate sentence removal.
+    \item Sentence length filtering, for example 3--100 tokens.
+    \item Punctuation normalization.
+    \item Case handling; lowercasing will be evaluated carefully because Turkish has the I/ı distinction.
+    \item Noise filtering for web-crawled text.
+    \item Joint SentencePiece/BPE tokenization.
+    \item Shared subword vocabulary construction with 32k--64k units.
+\end{enumerate}
+
+\subsection{Anticipated Data Challenges}
+
+The main data challenges are domain mismatch between English and Turkish monolingual corpora, noisy web-crawled text, Turkish-specific encoding issues, computational cost of processing large corpora, and reliance on an external parallel benchmark for evaluation while preserving the unsupervised training setup.
+
+\section{Literature Review Progress}
+
+\textbf{Back-translation with monolingual data.} Sennrich et al. (2016) showed that monolingual data can improve neural machine translation by generating synthetic parallel data through back-translation. This idea is central to our planned iterative training loop.
+
+\textbf{Unsupervised NMT from monolingual corpora.} Lample et al. (2018) proposed a fully unsupervised NMT framework combining shared latent representations, denoising autoencoding, and iterative back-translation. This work directly motivates our main architecture.
+
+\textbf{Cross-lingual representations.} Artetxe et al. (2018) highlighted the importance of unsupervised cross-lingual alignment and shared encoder--decoder architectures. Their work informs our approach to building a shared semantic space without sentence-level supervision.
+
+\textbf{Pretrained multilingual models.} More recent work such as XLM, MASS, mBART, and mT5 shows that multilingual denoising pretraining can provide strong initialization for low-resource and cross-lingual generation tasks. These models are considered as possible comparison points or extensions, but the primary project focus remains a from-scratch UNMT pipeline.
+
+\textbf{Technical direction.} Our planned method follows the classical UNMT paradigm: train a shared encoder--decoder with denoising autoencoding and improve translation ability through iterative back-translation.
+
+\section{Baseline Models and Checkpoint Strategies}
+
+We distinguish between \textbf{checkpoint baselines}, which are implemented to validate the evaluation pipeline, and \textbf{planned UNMT baselines}, which will be developed in the next phase.
+
+\subsection{Checkpoint Baseline 1: Copy Baseline}
+
+The copy baseline outputs the source sentence directly without translating it. For TR$\rightarrow$EN, the Turkish input is copied as the English prediction; for EN$\rightarrow$TR, the English input is copied as the Turkish prediction. This baseline is intentionally weak and serves as a lower-bound sanity check. It verifies that the evaluation pipeline penalizes untranslated outputs.
+
+\textbf{Status:} Implemented and evaluated on a 100-sentence FLORES-200 devtest pilot subset.
+
+\subsection{Checkpoint Baseline 2: External Pretrained MT Reference}
+
+We also evaluated external pretrained Helsinki-NLP translation models:
+\begin{itemize}
+    \item TR$\rightarrow$EN: \texttt{Helsinki-NLP/opus-mt-tr-en}
+    \item EN$\rightarrow$TR: \texttt{Helsinki-NLP/opus-mt-tc-big-en-tr}
+\end{itemize}
+
+These models are not part of our proposed unsupervised training pipeline and are not used to train our system. They are included only as external reference baselines to validate the evaluation setup and to provide an approximate comparison point for automatic metrics at the checkpoint stage.
+
+\textbf{Status:} Implemented and evaluated on the same 100-sentence FLORES-200 devtest pilot subset.
+
+\subsection{Planned Baseline: Word-by-Word Dictionary Translation}
+
+A simple lexicon-based baseline will translate each source word independently using a bilingual dictionary or nearest-neighbor mapping from cross-lingual word embeddings. No reordering or morphological processing will be applied, so fluency is expected to be weak. This model will provide a simple lexical lower bound closer to the unsupervised setting than the external pretrained reference.
+
+\textbf{Status:} Script structure prepared; dictionary source selection is in progress.
+
+\subsection{Planned Main Method: Denoising Autoencoder + Iterative Back-Translation}
+
+The main UNMT system will follow the Lample et al. (2018) framework:
+\begin{enumerate}
+    \item Train a shared encoder--decoder as a denoising autoencoder on Turkish and English monolingual corpora.
+    \item Use the current model to translate monolingual sentences and create synthetic parallel data.
+    \item Retrain the model using the synthetic parallel pairs.
+    \item Repeat the back-translation and training process for multiple iterations.
+\end{enumerate}
+
+\textbf{Status:} Training script scaffolding, noise function design, and back-translation script structure are prepared. Full training is planned for the next phase.
+
+\section{Initial Experimental Results}
+
+At the technical checkpoint stage, we completed a small-scale evaluation pipeline for Turkish--English and English--Turkish machine translation. The goal of this checkpoint experiment is not to claim final unsupervised translation performance, but to verify that the benchmark loading, baseline generation, output formatting, and automatic evaluation scripts work correctly.
+
+We used a 100-sentence pilot subset from the FLORES-200 devtest benchmark. Both translation directions were evaluated: Turkish-to-English (TR$\rightarrow$EN) and English-to-Turkish (EN$\rightarrow$TR). The evaluation uses BLEU and chrF, which are standard automatic metrics for machine translation. BLEU measures n-gram overlap with the reference translation, while chrF measures character-level similarity and is especially useful for morphologically rich languages such as Turkish.
+
+\begin{table}[H]
+\centering
+\caption{Initial checkpoint results on a 100-sentence FLORES-200 devtest pilot subset.}
+\label{tab:checkpoint-results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrl}
+\toprule
+Model & Direction & BLEU & chrF & Status \\
+\midrule
+Copy Baseline & TR$\rightarrow$EN & 2.82 & 21.16 & Complete \\
+Pretrained MT Reference (Helsinki-NLP/opus-mt-tr-en) & TR$\rightarrow$EN & 30.21 & 58.97 & Complete \\
+Copy Baseline & EN$\rightarrow$TR & 2.83 & 20.02 & Complete \\
+Pretrained MT Reference (Helsinki-NLP/opus-mt-tc-big-en-tr) & EN$\rightarrow$TR & 31.08 & 61.50 & Complete \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+The copy baseline performs very poorly in both directions, with BLEU scores around 2.8. This is expected because the output remains in the source language and has little overlap with the target-language reference. In contrast, the pretrained MT reference baseline achieves substantially higher scores, reaching 30.21 BLEU and 58.97 chrF for TR$\rightarrow$EN, and 31.08 BLEU and 61.50 chrF for EN$\rightarrow$TR.
+
+These results confirm that the evaluation pipeline is functional and that the metrics can distinguish between an invalid lower-bound baseline and a meaningful translation system. A brief qualitative inspection also supports this result: the copy baseline leaves sentences untranslated, while the pretrained reference model generally produces fluent translations, although some outputs still contain minor semantic shifts or awkward phrasing for long biomedical-style sentences. In the next phase, we will replace the external pretrained reference with our own unsupervised NMT pipeline based on denoising autoencoding and iterative back-translation.
+
+\section{Planned Improvements and Technical Direction}
+
+The next development phase will focus on moving from checkpoint validation to the full UNMT system:
+
+\begin{enumerate}
+    \item \textbf{Finalize data preparation:} download and clean Turkish and English CC-100 monolingual corpora.
+    \item \textbf{Complete preprocessing:} implement normalization, deduplication, length filtering, and noise removal.
+    \item \textbf{Train shared subword vocabulary:} build a joint SentencePiece/BPE vocabulary with 32k--64k units.
+    \item \textbf{Implement word-by-word baseline:} evaluate the simple lexical baseline as a lower bound.
+    \item \textbf{Train denoising autoencoder:} implement word dropout, word shuffling, and masking objectives.
+    \item \textbf{Implement iterative back-translation:} generate synthetic parallel data and alternate training directions.
+    \item \textbf{Evaluate decoding strategies:} compare greedy decoding and beam search.
+    \item \textbf{Run full evaluation:} report BLEU and chrF on FLORES-200 devtest.
+    \item \textbf{Analyze difficult cases:} focus on long sentences, named entities, numbers, and rare Turkish word forms.
+    \item \textbf{Optional extension:} compare against a pretrained multilingual encoder--decoder such as mBART if resources allow.
+\end{enumerate}
+
+\section{Ablation or Sensitivity Study Plan}
+
+The following ablations are planned after the main training pipeline becomes operational:
+
+\begin{itemize}
+    \item \textbf{Denoising objective:} compare training with and without the denoising autoencoder objective.
+    \item \textbf{Back-translation iterations:} evaluate translation quality after 1, 3, 5, and 10 iterations.
+    \item \textbf{Shared vs. separate vocabulary:} compare joint subword vocabulary with language-specific vocabularies.
+    \item \textbf{Greedy vs. beam search:} test beam sizes 1, 4, and 8.
+    \item \textbf{Vocabulary size:} compare 16k, 32k, and 64k subword units.
+    \item \textbf{Sentence length threshold:} compare maximum training lengths such as 50, 80, and 100 tokens.
+    \item \textbf{Pretrained vs. from-scratch comparison:} if resources allow, compare the from-scratch UNMT pipeline with a fine-tuned multilingual pretrained model.
+\end{itemize}
+
+\section{Error Analysis and Generation Quality Analysis}
+
+After initial UNMT translations are produced, we will perform a qualitative error analysis on 50--100 samples per direction. The planned error categories are:
+
+\begin{itemize}
+    \item Incorrect or unrelated translations.
+    \item Semantic errors where the output changes or loses the source meaning.
+    \item Word order errors caused by Turkish SOV and English SVO differences.
+    \item Untranslated source-language words.
+    \item Hallucinated content not supported by the source sentence.
+    \item Named entity, date, and number preservation errors.
+    \item Grammatical or morphological errors.
+    \item Repetition problems.
+    \item Fluent but incorrect outputs.
+    \item Long sentence failures and rare word problems.
+\end{itemize}
+
+Generation quality will be assessed using adequacy, fluency, coherence, relevance, factual consistency, and linguistic quality. The checkpoint sample translations already show that automatic metrics alone are not sufficient: some translations may sound fluent while still shifting meaning. Therefore, manual error analysis will be an important part of the final report.
+
+\section{Ethical Considerations and Bias}
+
+Machine translation systems trained from noisy monolingual data raise several ethical concerns:
+
+\begin{itemize}
+    \item \textbf{Hallucination risk:} unsupervised NMT models may generate fluent translations that are semantically unrelated to the source.
+    \item \textbf{Fluent but wrong outputs:} fluency can create a false sense of correctness, making translation errors harder to detect.
+    \item \textbf{Bias from monolingual corpora:} web-crawled corpora may contain cultural, political, gender, or social biases.
+    \item \textbf{Toxicity and harmful content:} offensive or harmful content in the training data may appear in generated translations.
+    \item \textbf{Privacy concerns:} web-scale corpora may contain personally identifiable information.
+    \item \textbf{Misuse scenarios:} low-quality translations may be misused in sensitive domains such as legal, medical, or official communication.
+    \item \textbf{Evaluation limitations:} BLEU and chrF do not fully capture semantic adequacy, cultural appropriateness, or factual correctness.
+\end{itemize}
+
+For these reasons, the system should not be used in high-stakes settings without human verification. The final report will include limitations and responsible deployment considerations.
+
+\section{GitHub and Reproducibility Status}
+
+\textbf{Repository:} \url{https://github.com/alialp5959/ceng467-term-project}
+
+The repository has been initialized and updated with checkpoint evaluation artifacts. The current structure is:
+
+\begin{verbatim}
+ceng467-term-project/
+  README.md
+  requirements.txt
+  .gitignore
+  configs/
+    config.yaml
+  src/
+    preprocess.py
+    baseline_word_by_word.py
+    checkpoint_baselines.py
+    train_autoencoder.py
+    backtranslate.py
+    evaluate.py
+  data/
+    raw/
+    processed/
+  results/
+    checkpoint_results.csv
+    sample_translations_tr_en.csv
+    sample_translations_en_tr.csv
+    checkpoint_results_table.tex
+\end{verbatim}
+
+\subsection{Checkpoint Reproducibility}
+
+The checkpoint baseline results can be reproduced with:
+
+\begin{verbatim}
+pip install transformers sacrebleu sentencepiece sacremoses pandas tqdm
+python src/checkpoint_baselines.py
+\end{verbatim}
+
+The script evaluates the copy baseline and the external pretrained MT reference baselines on a 100-sentence FLORES-200 devtest pilot subset and saves the result files under \texttt{results/}.
+
+\subsection{Full Project Reproducibility Plan}
+
+For the final system, the repository will include:
+\begin{itemize}
+    \item README with setup, data preparation, training, and evaluation instructions.
+    \item requirements.txt with pinned dependencies.
+    \item config.yaml for paths and hyperparameters.
+    \item preprocessing, training, back-translation, and evaluation scripts.
+    \item result tables and sample translations.
+    \item random seed specification for reproducibility.
+\end{itemize}
+
+\section{Current Challenges and Next Steps}
+
+\subsection{Current Challenges}
+
+The main challenges are:
+\begin{itemize}
+    \item Preparing sufficiently clean Turkish and English monolingual corpora.
+    \item Handling Turkish morphology and encoding issues.
+    \item Managing the computational cost of denoising autoencoder and iterative back-translation training.
+    \item Engineering an efficient back-translation loop for both directions.
+    \item Preventing early UNMT iterations from collapsing into low-quality translations.
+    \item Evaluating quality beyond BLEU and chrF through qualitative analysis.
+\end{itemize}
+
+\subsection{Next Steps Before Final Submission}
+
+The following steps are planned for the remaining weeks:
+
+\begin{enumerate}
+    \item Finalize and test the preprocessing pipeline.
+    \item Download and preprocess the monolingual CC-100 corpora.
+    \item Train the shared SentencePiece/BPE vocabulary.
+    \item Implement and evaluate the word-by-word dictionary baseline.
+    \item Implement the denoising autoencoder training loop.
+    \item Implement iterative back-translation and begin UNMT training.
+    \item Evaluate all models on FLORES-200 using BLEU and chrF.
+    \item Conduct the planned ablation studies.
+    \item Perform manual error analysis on translation outputs.
+    \item Complete the final LNCS-style project report and prepare the live demo.
+\end{enumerate}
+
+\section*{References}
+
+Artetxe, M., Labaka, G., Agirre, E., \& Cho, K. (2018). Unsupervised Statistical Machine Translation. \textit{Proceedings of EMNLP}.
+
+Conneau, A., \& Lample, G. (2019). Cross-lingual Language Model Pretraining. \textit{Proceedings of NeurIPS}.
+
+Lample, G., Conneau, A., Denoyer, L., \& Ranzato, M. (2018). Unsupervised Machine Translation Using Monolingual Corpora Only. \textit{Proceedings of ICLR}.
+
+Liu, Y., et al. (2020). Multilingual Denoising Pre-training for Neural Machine Translation. \textit{Transactions of the ACL}.
+
+Sennrich, R., Haddow, B., \& Birch, A. (2016). Improving Neural Machine Translation Models with Monolingual Data. \textit{Proceedings of ACL}.
+
+Song, K., Tan, X., Qin, T., Lu, J., \& Liu, T.-Y. (2019). MASS: Masked Sequence to Sequence Pre-training for Language Generation. \textit{Proceedings of ICML}.
+
+Xue, L., et al. (2021). mT5: A Massively Multilingual Pre-trained Text-to-Text Transformer. \textit{Proceedings of NAACL}.
+
+\end{document}
