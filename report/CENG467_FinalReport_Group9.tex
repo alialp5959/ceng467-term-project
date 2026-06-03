@@ -40,7 +40,7 @@ The core translation capability emerges during the IBT phase. The model generate
 We established three baselines: 1) A Copy Baseline, 2) A Word-by-Word translation using MUSE-aligned fastText embeddings, and 3) A fully supervised Helsinki-NLP MarianMT model.
 
 \subsection{Training Details}
-Training was conducted on a Google Colab T4 GPU (16GB VRAM) using FP16 mixed precision and gradient accumulation to simulate a large batch size of 128. AdamW was utilized with a cosine learning rate scheduler.
+Training was conducted on a Google Colab A100 GPU using FP16 mixed precision and gradient accumulation to simulate a large batch size of 128. AdamW was utilized with a cosine learning rate scheduler. The Denoising Autoencoder (DAE) pre-training successfully converged to a best cross-entropy loss of 5.15 after 3 epochs, demonstrating that the model learned the grammar and morphology of both languages prior to the Iterative Back-Translation phase.
 
 \section{Results}
 \subsection{Automatic Evaluation}
