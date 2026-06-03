@@ -159,7 +159,7 @@ def download_cc100(cfg: dict) -> None:
             f"(target: {max_sents:,} sentences)…"
         )
 
-        ds = load_dataset("cc100", lang=lang, split="train", streaming=True)
+        ds = load_dataset("cc100", lang=lang, split="train", streaming=True, trust_remote_code=True)
 
         count = 0
         with open(out_path, "w", encoding="utf-8") as fout:
