@@ -211,12 +211,19 @@ def main():
         log.info(f"\n{'='*50}\n IBT ITERATION {it}\n{'='*50}")
         
         # 1. Sample lines to translate
-        # Read from clean files directly (much faster than decoding SP IDs)
+        # We decode directly from the dataset arrays to avoid reading text files again
         log.info("Sampling sentences for back-translation...")
-        with open(os.path.join(proc_dir, "clean.tr.txt"), "r", encoding="utf-8") as f:
-            tr_lines = [next(f).strip() for _ in range(args.sample_size)]
-        with open(os.path.join(proc_dir, "clean.en.txt"), "r", encoding="utf-8") as f:
-            en_lines = [next(f).strip() for _ in range(args.sample_size)]
+        
+        sample_n = min(args.sample_size, len(tr_dataset), len(en_dataset))
+        
+        tr_lines = []
+        for i in range(sample_n):
+            # tr_dataset[i] returns a numpy array or list of token ids
+            tr_lines.append(sp.decode(tr_dataset[i].tolist()))
+            
+        en_lines = []
+        for i in range(sample_n):
+            en_lines.append(sp.decode(en_dataset[i].tolist()))
             
         # 2. Generate Synthetic EN from Real TR
         log.info(f"Generating Synthetic EN from TR (Iter {it})...")
