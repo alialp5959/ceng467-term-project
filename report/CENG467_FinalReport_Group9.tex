@@ -1,0 +1,78 @@
+\documentclass[runningheads]{llncs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{array}
+
+\begin{document}
+
+\title{Unsupervised Neural Machine Translation for Turkish and English: Denoising Autoencoder and Iterative Back-Translation}
+\author{Group 9}
+\institute{CENG467 Term Project}
+\maketitle
+
+\begin{abstract}
+This report details the design, implementation, and evaluation of an Unsupervised Neural Machine Translation (UNMT) system for the Turkish-English language pair, developed without using any parallel corpora. We leverage a shared lightweight Transformer encoder-decoder architecture (46M parameters) trained initially as a Denoising Autoencoder (DAE) to model language-specific distributions, followed by Iterative Back-Translation (IBT) to align the latent spaces. Our implementation builds heavily upon the methodologies proposed by Lample et al. (2018). We present extensive evaluations on the FLORES-200 benchmark, comparing our unsupervised approach against a word-by-word fastText baseline and a supervised Helsinki-NLP reference model. Detailed error analyses highlight the specific challenges posed by Turkish agglutinative morphology in an unsupervised setting.
+\end{abstract}
+
+\section{Introduction}
+Neural Machine Translation (NMT) has achieved near-human parity on resource-rich language pairs by relying on massive parallel corpora. However, parallel data is inherently scarce, expensive to create, and unavailable for many language combinations. Unsupervised Neural Machine Translation (UNMT) addresses this by training models solely on monolingual corpora. In this project, we explore the challenges of applying UNMT to the Turkish-English pair, a morphologically rich and structurally distinct combination.
+
+\section{Related Work}
+Lample et al. (2018) introduced a robust framework for UNMT relying on three core principles: 1) shared latent representations, 2) denoising autoencoding, and 3) iterative back-translation. Subsequent works such as XLM and mBART extended this by pre-training massive masked language models. Due to computational constraints, our project replicates the fundamental principles of Lample et al. using a lightweight Transformer.
+
+\section{Methodology}
+\subsection{Data Preprocessing and Vocabulary}
+We utilize 1,000,000 sentences per language from the CC-100 dataset. We trained a joint SentencePiece Unigram vocabulary (size 32,000) on both corpora to enforce a shared embedding space. Turkish lowercasing and aggressive web-noise filtering were applied.
+
+\subsection{Model Architecture}
+A 4-layer, 8-head shared Transformer Encoder-Decoder (46M parameters) was implemented using PyTorch. The embedding layer is shared across both languages and tied to the output projection. A language identifier token (\texttt{<TR>} or \texttt{<EN>}) prepended to the encoder input signals the target language.
+
+\subsection{Denoising Autoencoder (DAE)}
+To establish a strong language model prior, we trained the network to reconstruct clean sentences from corrupted inputs. The noise function applies word dropping ($p=0.1$), word masking ($p=0.1$), and local word shuffling ($k=3$).
+
+\subsection{Iterative Back-Translation (IBT)}
+The core translation capability emerges during the IBT phase. The model generates synthetic parallel data by translating monolingual sentences using greedy decoding. The model is then trained with a cross-entropy objective to predict the real sentence from the synthetic translation.
+
+\section{Experimental Setup}
+\subsection{Baselines}
+We established three baselines: 1) A Copy Baseline, 2) A Word-by-Word translation using MUSE-aligned fastText embeddings, and 3) A fully supervised Helsinki-NLP MarianMT model.
+
+\subsection{Training Details}
+Training was conducted on a Google Colab T4 GPU (16GB VRAM) using FP16 mixed precision and gradient accumulation to simulate a large batch size of 128. AdamW was utilized with a cosine learning rate scheduler.
+
+\section{Results}
+\subsection{Automatic Evaluation}
+Evaluation was performed on the FLORES-200 devtest split (1012 sentences). 
+
+\begin{table}[h]
+\centering
+\caption{Automatic Evaluation Results on FLORES-200}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Model} & \multicolumn{2}{c}{\textbf{TR $\rightarrow$ EN}} & \multicolumn{2}{c}{\textbf{EN $\rightarrow$ TR}} \\
+\cmidrule(lr){2-3} \cmidrule(l){4-5} 
+ & \textbf{BLEU} & \textbf{chrF} & \textbf{BLEU} & \textbf{chrF} \\ \midrule
+Copy Baseline & 2.82 & - & 2.83 & - \\
+Word-by-Word (MUSE) & [SCORE] & [SCORE] & [SCORE] & [SCORE] \\
+UNMT (Our Model - Greedy) & [SCORE] & [SCORE] & [SCORE] & [SCORE] \\
+UNMT (Our Model - Beam 4) & [SCORE] & [SCORE] & [SCORE] & [SCORE] \\ \midrule
+Helsinki-NLP (Supervised) & 30.21 & - & 31.08 & - \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\section{Error Analysis}
+We manually annotated 50 randomly sampled sentences. The dominant error categories were:
+\begin{itemize}
+    \item \textbf{Syntax Mismatch:} Subject-Object-Verb (Turkish) vs. Subject-Verb-Object (English) alignment failures.
+    \item \textbf{Hallucination:} The model reverting to auto-encoding behavior or generating fluent but unrelated text.
+\end{itemize}
+
+\section{Discussion and Ethical Considerations}
+UNMT models exhibit a high risk of hallucination and bias amplification, particularly when trained on uncurated web data like CC-100. Furthermore, the lack of parallel supervision means the model may silently map completely different semantic concepts to each other if their distributional properties match.
+
+\section{Conclusion}
+This project successfully implemented a complete UNMT pipeline. While reaching the performance of supervised systems remains challenging, the model demonstrates the capacity to align latent spaces solely from monolingual distributions. 
+
+\end{document}

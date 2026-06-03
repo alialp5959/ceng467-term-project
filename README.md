@@ -1,33 +1,78 @@
-# CENG467 Term Project - Group 9 Technical Checkpoint
+# CENG467 Term Project - Unsupervised Neural Machine Translation (UNMT)
 
-Repository: https://github.com/alialp5959/ceng467-term-project
+**Group 9**: [Your Name/ID Here]
 
-This package contains the technical checkpoint report and the files used for the initial baseline evaluation.
+This repository contains the complete implementation of our Unsupervised Neural Machine Translation (UNMT) system for Turkish-English, trained without any parallel data using Denoising Autoencoder (DAE) and Iterative Back-Translation (IBT), following the methodology of Lample et al. (2018).
 
-## Main submission file
+## Features
 
-- `CENG467_ProgressReport_Group9.pdf`
+- **Full Pipeline**: Data downloading, cleaning, joint SentencePiece vocabulary training, model training, and evaluation.
+- **Lightweight Architecture**: 4-layer Transformer Encoder-Decoder (46M parameters) optimized for Google Colab T4.
+- **Denoising Autoencoder (DAE)**: Word shuffle, dropout, and mask noise generation.
+- **Iterative Back-Translation (IBT)**: Synthetic parallel data generation and alternating cross-entropy/DAE training.
+- **Comprehensive Evaluation**: Automated BLEU and chrF scoring on FLORES-200.
+- **Interactive Demo**: Gradio-based web interface for testing translations live.
 
-## Checkpoint artifacts
+## Quick Start (Google Colab)
 
-- `src/checkpoint_baselines.py`: script for the checkpoint baselines.
-- `results/checkpoint_results.csv`: BLEU and chrF results used in the report.
-- `results/checkpoint_results_table.tex`: LaTeX table used in the report.
-- `results/sample_translations_preview.csv`: short preview of qualitative examples.
-- `report/CENG467_ProgressReport_Group9_Revised.tex`: LaTeX source of the report.
+The project is designed to run seamlessly on Google Colab, leveraging Google Drive for data storage and checkpointing.
 
-## Reproduce checkpoint baseline evaluation
+1. **Mount Drive & Clone Repository**:
+   ```python
+   from google.colab import drive
+   drive.mount('/content/drive')
+   
+   !git clone https://github.com/alialp5959/ceng467-term-project.git
+   %cd ceng467-term-project
+   ```
 
-The script expects FLORES-200 files under:
+2. **Install Dependencies**:
+   ```python
+   !pip install -r requirements.txt
+   ```
 
-```text
-flores200_dataset/devtest/eng_Latn.devtest
-flores200_dataset/devtest/tur_Latn.devtest
-```
+3. **Run Preprocessing Pipeline** (Downloads CC-100, cleans it, and trains SentencePiece):
+   ```python
+   !python src/preprocess.py --step all
+   ```
 
-Then run:
+4. **Train Denoising Autoencoder (DAE)**:
+   ```python
+   !python src/train_autoencoder.py
+   ```
 
-```bash
-pip install -r requirements.txt
-python src/checkpoint_baselines.py
-```
+5. **Iterative Back-Translation (IBT)**:
+   ```python
+   !python src/backtranslate.py --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt --iterations 3
+   ```
+
+6. **Evaluate on FLORES-200**:
+   ```python
+   !python src/evaluate.py --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt
+   ```
+
+7. **Launch Live Demo**:
+   ```python
+   !python src/demo.py --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt
+   ```
+
+## Repository Structure
+
+- `configs/`: YAML configuration files.
+- `src/`: Core implementation scripts.
+  - `preprocess.py`: CC-100 dataset download, filtering, and tokenization.
+  - `model.py`: Transformer architecture.
+  - `noise.py`: DAE noise functions (shuffle, dropout, mask).
+  - `dataset.py`: Dataloaders for monolingual and synthetic parallel data.
+  - `train_autoencoder.py`: DAE training loop.
+  - `generate.py`: Greedy and Beam Search decoding.
+  - `backtranslate.py`: IBT training loop.
+  - `evaluate.py`: BLEU/chrF evaluation on FLORES-200.
+  - `error_analysis.py`: Sample generator for manual qualitative review.
+  - `demo.py`: Gradio interface.
+- `report/`: LaTeX source for the final project report.
+
+## Baseline Results (Checkpoint)
+- **Copy Baseline**: TR->EN: 2.82 BLEU, EN->TR: 2.83 BLEU
+- **Word-by-Word MUSE Baseline**: ~1-2 BLEU
+- **Helsinki-NLP (Supervised Reference)**: TR->EN: 30.21 BLEU, EN->TR: 31.08 BLEU

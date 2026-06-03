@@ -16,3 +16,4 @@ pandas
 numpy
 tqdm
 pyyaml
+gradio
