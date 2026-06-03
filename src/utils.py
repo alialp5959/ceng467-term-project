@@ -152,10 +152,7 @@ def add_base_args(parser):
 # ────────────────────────────────────────────────────────────
 
 def download_flores_if_needed(cfg):
-    """Download FLORES-200 devtest directly from Meta if not present."""
-    import urllib.request
-    import tarfile
-    
+    """Download FLORES-200 devtest from HuggingFace mirror if not present."""
     base_dir = cfg["paths"]["base_dir"]
     flores_dir = os.path.join(base_dir, cfg["evaluation"]["flores_dir"])
     tr_file = cfg["evaluation"]["source_files"]["tr"]
@@ -168,26 +165,26 @@ def download_flores_if_needed(cfg):
         return tr_dest, en_dest
         
     log = logging.getLogger("ceng467")
-    log.info("FLORES-200 not found locally. Downloading from Meta AWS S3...")
-    
-    tar_url = "https://dl.fbaipublicfiles.com/flores200/dataset/flores200_dataset.tar.gz"
-    tar_path = os.path.join(base_dir, "flores200_dataset.tar.gz")
+    log.info("FLORES-200 not found locally. Downloading from HuggingFace (Muennighoff/flores200)...")
     
     try:
-        if not os.path.exists(tar_path):
-            urllib.request.urlretrieve(tar_url, tar_path)
-            log.info("Download complete. Extracting...")
+        from datasets import load_dataset
+        
+        # Load Turkish and English using trust_remote_code=True 
+        # (This works because we downgraded datasets to <=2.19.1)
+        ds_tr = load_dataset("Muennighoff/flores200", "tur_Latn", split="devtest", trust_remote_code=True)
+        ds_en = load_dataset("Muennighoff/flores200", "eng_Latn", split="devtest", trust_remote_code=True)
+        
+        tr_lines = [ex["sentence"] for ex in ds_tr]
+        en_lines = [ex["sentence"] for ex in ds_en]
+        
+        os.makedirs(flores_dir, exist_ok=True)
+        with open(tr_dest, "w", encoding="utf-8") as f:
+            f.write("\n".join(tr_lines) + "\n")
+        with open(en_dest, "w", encoding="utf-8") as f:
+            f.write("\n".join(en_lines) + "\n")
             
-        with tarfile.open(tar_path, "r:gz") as tar:
-            # The tar has structure: flores200_dataset/devtest/tur_Latn.devtest
-            for member in tar.getmembers():
-                if member.name.endswith("tur_Latn.devtest") or member.name.endswith("eng_Latn.devtest"):
-                    tar.extract(member, path=base_dir)
-                    
-        if os.path.exists(tar_path):
-            os.remove(tar_path)
-            
-        log.info(f"FLORES-200 extracted successfully to {flores_dir}")
+        log.info(f"FLORES-200 successfully downloaded to {flores_dir}")
     except Exception as e:
         log.error(f"Failed to download FLORES-200: {e}")
         
