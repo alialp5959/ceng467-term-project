@@ -192,7 +192,7 @@ def main():
     device = get_device()
     
     proc_dir = resolve_path(cfg, "data", "processed_subdir")
-    synth_dir = ensure_dir(resolve_path(cfg, "data", "synthetic_subdir", default="data/synthetic"))
+    synth_dir = ensure_dir(resolve_path(cfg, "backtranslation", "synthetic_subdir"))
     
     log.info("Loading SentencePiece...")
     sp = spm.SentencePieceProcessor(model_file=os.path.join(proc_dir, f"{cfg['vocab']['model_prefix']}.model"))
