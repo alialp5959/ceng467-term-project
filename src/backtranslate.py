@@ -218,12 +218,16 @@ def main():
         
         tr_lines = []
         for i in range(sample_n):
-            # tr_dataset[i] returns a numpy array or list of token ids
-            tr_lines.append(sp.decode(tr_dataset[i].tolist()))
+            # tr_dataset[i] may be a list or a numpy array
+            item = tr_dataset[i]
+            if hasattr(item, "tolist"): item = item.tolist()
+            tr_lines.append(sp.decode(item))
             
         en_lines = []
         for i in range(sample_n):
-            en_lines.append(sp.decode(en_dataset[i].tolist()))
+            item = en_dataset[i]
+            if hasattr(item, "tolist"): item = item.tolist()
+            en_lines.append(sp.decode(item))
             
         # 2. Generate Synthetic EN from Real TR
         log.info(f"Generating Synthetic EN from TR (Iter {it})...")
