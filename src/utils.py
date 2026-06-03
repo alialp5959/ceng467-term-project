@@ -146,3 +146,49 @@ def add_base_args(parser):
         help="Override paths.base_dir from config (useful for local dev)",
     )
     return parser
+
+# ────────────────────────────────────────────────────────────
+#  FLORES-200 Direct Download (Bypassing HuggingFace)
+# ────────────────────────────────────────────────────────────
+
+def download_flores_if_needed(cfg):
+    """Download FLORES-200 devtest directly from Meta if not present."""
+    import urllib.request
+    import tarfile
+    
+    base_dir = cfg["paths"]["base_dir"]
+    flores_dir = os.path.join(base_dir, cfg["evaluation"]["flores_dir"])
+    tr_file = cfg["evaluation"]["source_files"]["tr"]
+    en_file = cfg["evaluation"]["source_files"]["en"]
+    
+    tr_dest = os.path.join(flores_dir, tr_file)
+    en_dest = os.path.join(flores_dir, en_file)
+    
+    if os.path.exists(tr_dest) and os.path.exists(en_dest):
+        return tr_dest, en_dest
+        
+    log = logging.getLogger("ceng467")
+    log.info("FLORES-200 not found locally. Downloading from Meta AWS S3...")
+    
+    tar_url = "https://dl.fbaipublicfiles.com/flores200/dataset/flores200_dataset.tar.gz"
+    tar_path = os.path.join(base_dir, "flores200_dataset.tar.gz")
+    
+    try:
+        if not os.path.exists(tar_path):
+            urllib.request.urlretrieve(tar_url, tar_path)
+            log.info("Download complete. Extracting...")
+            
+        with tarfile.open(tar_path, "r:gz") as tar:
+            # The tar has structure: flores200_dataset/devtest/tur_Latn.devtest
+            for member in tar.getmembers():
+                if member.name.endswith("tur_Latn.devtest") or member.name.endswith("eng_Latn.devtest"):
+                    tar.extract(member, path=base_dir)
+                    
+        if os.path.exists(tar_path):
+            os.remove(tar_path)
+            
+        log.info(f"FLORES-200 extracted successfully to {flores_dir}")
+    except Exception as e:
+        log.error(f"Failed to download FLORES-200: {e}")
+        
+    return tr_dest, en_dest

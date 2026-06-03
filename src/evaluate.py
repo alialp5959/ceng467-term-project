@@ -33,16 +33,17 @@ from src.generate import translate_lines
 log = setup_logging("evaluate")
 
 
-def get_flores_data():
+def get_flores_data(cfg):
     """Load FLORES-200 devtest for TR-EN."""
+    from src.utils import download_flores_if_needed
     log.info("Loading FLORES-200 devtest dataset...")
-    # 'tur_Latn' = Turkish, 'eng_Latn' = English
-    ds_tr = load_dataset("facebook/flores", "tur_Latn", split="devtest")
-    ds_en = load_dataset("facebook/flores", "eng_Latn", split="devtest")
     
-    # Sentence list
-    tr_sentences = ds_tr["sentence"]
-    en_sentences = ds_en["sentence"]
+    tr_path, en_path = download_flores_if_needed(cfg)
+    
+    with open(tr_path, "r", encoding="utf-8") as f:
+        tr_sentences = [line.strip() for line in f]
+    with open(en_path, "r", encoding="utf-8") as f:
+        en_sentences = [line.strip() for line in f]
     
     assert len(tr_sentences) == len(en_sentences), "Mismatched FLORES-200 lengths!"
     return tr_sentences, en_sentences
@@ -81,7 +82,7 @@ def main():
     device = get_device()
     
     # 1. Load Data
-    tr_refs, en_refs = get_flores_data()
+    tr_refs, en_refs = get_flores_data(cfg)
     
     # 2. Load SP
     proc_dir = resolve_path(cfg, "data", "processed_subdir")

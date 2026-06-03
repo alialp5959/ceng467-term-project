@@ -429,38 +429,18 @@ def load_flores(cfg: dict) -> Tuple[List[str], List[str]]:
         log.info(f"  EN: {en_path}")
         return read_lines(tr_path), read_lines(en_path)
 
-    # ── Try 3: HuggingFace datasets ─────────────────────────
-    log.info("Local FLORES files not found — downloading from HuggingFace …")
-    try:
-        from datasets import load_dataset
-
-        ds = load_dataset(
-            "openlanguagedata/flores_plus",
-            split="devtest",
-        )
-        tr_lines = [ex["text"]["tur_Latn"] for ex in ds]
-        en_lines = [ex["text"]["eng_Latn"] for ex in ds]
-
-        # Cache to disk for future runs
-        ensure_dir(flores_dir)
-        local_tr = os.path.join(flores_dir, tr_file)
-        local_en = os.path.join(flores_dir, en_file)
-        with open(local_tr, "w", encoding="utf-8") as f:
-            f.write("\n".join(tr_lines) + "\n")
-        with open(local_en, "w", encoding="utf-8") as f:
-            f.write("\n".join(en_lines) + "\n")
-        log.info(f"  Cached → {local_tr}")
-        log.info(f"  Cached → {local_en}")
-
-        return tr_lines, en_lines
-    except Exception as e:
-        log.error(
-            f"Could not load FLORES-200: {e}\n"
-            f"Please download manually and place files at:\n"
-            f"  {os.path.join(flores_dir, tr_file)}\n"
-            f"  {os.path.join(flores_dir, en_file)}"
-        )
-        sys.exit(1)
+    # ── Try 3: Direct Download from Meta AWS S3 ───────────────
+    from src.utils import download_flores_if_needed
+    tr_dest, en_dest = download_flores_if_needed(cfg)
+    
+    if os.path.exists(tr_dest) and os.path.exists(en_dest):
+        log.info(f"Loading FLORES-200 from local files:")
+        log.info(f"  TR: {tr_dest}")
+        log.info(f"  EN: {en_dest}")
+        return read_lines(tr_dest), read_lines(en_dest)
+        
+    log.error("Could not load FLORES-200.")
+    sys.exit(1)
 
 
 def compute_metrics(
