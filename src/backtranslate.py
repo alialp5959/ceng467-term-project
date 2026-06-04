@@ -230,19 +230,36 @@ def main():
             if hasattr(item, "tolist"): item = item.tolist()
             en_lines.append(sp.decode(item))
             
-        # 2. Generate Synthetic EN from Real TR
-        log.info(f"Generating Synthetic EN from TR (Iter {it})...")
-        synth_en = translate_lines(tr_lines, model, sp, src_lang="tr", device=device, strategy="greedy", batch_size=cfg["training"]["batch_size"])
-        with open(os.path.join(synth_dir, f"synth.en.iter{it}.txt"), "w", encoding="utf-8") as f:
-            for line in synth_en: f.write(line + "\n")
+        # 2. Generate Synthetic EN from Real TR (or load from cache)
+        synth_en_path = os.path.join(synth_dir, f"synth.en.iter{it}.txt")
+        synth_tr_path = os.path.join(synth_dir, f"synth.tr.iter{it}.txt")
+        
+        if os.path.exists(synth_en_path) and os.path.exists(synth_tr_path):
+            log.info(f"Found cached synthetic data — skipping translation!")
+            log.info(f"  Loading {synth_en_path}")
+            with open(synth_en_path, "r", encoding="utf-8") as f:
+                synth_en = [line.strip() for line in f]
+            log.info(f"  Loading {synth_tr_path}")
+            with open(synth_tr_path, "r", encoding="utf-8") as f:
+                synth_tr = [line.strip() for line in f]
+            # Match lengths with tr_lines / en_lines
+            min_n = min(len(synth_en), len(tr_lines), len(synth_tr), len(en_lines))
+            synth_en = synth_en[:min_n]
+            tr_lines = tr_lines[:min_n]
+            synth_tr = synth_tr[:min_n]
+            en_lines = en_lines[:min_n]
+        else:
+            log.info(f"Generating Synthetic EN from TR (Iter {it})...")
+            synth_en = translate_lines(tr_lines, model, sp, src_lang="tr", device=device, strategy="greedy", batch_size=cfg["training"]["batch_size"])
+            with open(synth_en_path, "w", encoding="utf-8") as f:
+                for line in synth_en: f.write(line + "\n")
+                
+            log.info(f"Generating Synthetic TR from EN (Iter {it})...")
+            synth_tr = translate_lines(en_lines, model, sp, src_lang="en", device=device, strategy="greedy", batch_size=cfg["training"]["batch_size"])
+            with open(synth_tr_path, "w", encoding="utf-8") as f:
+                for line in synth_tr: f.write(line + "\n")
             
-        # 3. Generate Synthetic TR from Real EN
-        log.info(f"Generating Synthetic TR from EN (Iter {it})...")
-        synth_tr = translate_lines(en_lines, model, sp, src_lang="en", device=device, strategy="greedy", batch_size=cfg["training"]["batch_size"])
-        with open(os.path.join(synth_dir, f"synth.tr.iter{it}.txt"), "w", encoding="utf-8") as f:
-            for line in synth_tr: f.write(line + "\n")
-            
-        # 4. Train Model
+        # 3. Train Model
         log.info(f"Training on synthetic data (Iter {it})...")
         train_iteration(
             cfg, model, sp, device, 
