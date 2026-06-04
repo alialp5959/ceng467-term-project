@@ -64,12 +64,13 @@ class SyntheticParallelDataset(Dataset):
         tgt_ids = self.sp.encode(self.real[idx], out_type=int)
         return src_ids, tgt_ids
 
-def collate_parallel(batch, pad_id, lang_id, bos_id, eos_id):
-    """Prepares parallel batch: [LANG] + src -> encoder, [BOS] + tgt -> decoder."""
+def collate_parallel(batch, pad_id, lang_id, bos_id, eos_id, max_len=126):
+    """Prepares parallel batch: [LANG] + src -> encoder, [BOS] + tgt -> decoder.
+    Truncates to max_len to avoid positional encoding overflow."""
     src_list, tgt_list = [], []
     for src, tgt in batch:
-        src_list.append([lang_id] + src)
-        tgt_list.append([bos_id] + tgt + [eos_id])
+        src_list.append(([lang_id] + src)[:max_len])
+        tgt_list.append(([bos_id] + tgt + [eos_id])[:max_len])
         
     src_tensor = pad_sequences(src_list, pad_id)
     tgt_tensor = pad_sequences(tgt_list, pad_id)
