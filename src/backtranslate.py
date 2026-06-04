@@ -166,7 +166,7 @@ def train_iteration(
             pbar.set_postfix({"loss": total_loss / steps})
             
     # Save checkpoint
-    out_dir = ensure_dir(resolve_path(cfg, cfg["training"]["checkpoint_subdir"]))
+    out_dir = ensure_dir(os.path.join(cfg["paths"]["base_dir"], cfg["training"]["checkpoint_subdir"]))
     ckpt_path = os.path.join(out_dir, f"checkpoint_ibt_iter{iteration}.pt")
     torch.save({
         "iteration": iteration,
