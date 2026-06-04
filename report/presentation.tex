@@ -189,15 +189,15 @@
        & BLEU & chrF & BLEU & chrF \\ \midrule
       Copy Baseline         & 2.82 & --    & 2.83  & --    \\
       Word-by-Word (MUSE)   & 3.25 & 34.63 & 2.46  & 36.00 \\
-      \textbf{Our UNMT}     & \textbf{[TBD]} & \textbf{[TBD]} & \textbf{[TBD]} & \textbf{[TBD]} \\
+      \textbf{Our UNMT (1 IBT)}     & \textbf{0.09} & \textbf{3.92} & \textbf{0.10} & \textbf{5.85} \\
       Helsinki-NLP (Sup.)   & 30.21 & --   & 31.08 & --    \\ \bottomrule
     \end{tabular}
   \end{table}
   \vfill
   \begin{itemize}
-    \item Our unsupervised model outperforms simple baselines
-    \item Gap to supervised model shows the difficulty of the task
-    \item Turkish morphology remains the biggest challenge
+    \item UNMT after 1 IBT iteration — model is still learning to translate
+    \item More iterations significantly improve quality (Lample et al.\ report 10+)
+    \item Gap to supervised model highlights the fundamental difficulty of the task
   \end{itemize}
 \end{frame}
 
