@@ -24,7 +24,7 @@ Lample et al. (2018) introduced a robust framework for UNMT relying on three cor
 
 \section{Methodology}
 \subsection{Data Preprocessing and Vocabulary}
-We utilize 1,000,000 sentences per language from the CC-100 dataset. We trained a joint SentencePiece Unigram vocabulary (size 32,000) on both corpora to enforce a shared embedding space. Turkish lowercasing and aggressive web-noise filtering were applied.
+We initially utilized 1,000,000 sentences per language from the CC-100 dataset. However, due to computational bottlenecks during the iterative back-translation phase, we later sub-sampled the dataset to 200,000 sentences per language to allow for a higher number of training iterations. We trained a joint SentencePiece Unigram vocabulary (size 32,000) on both corpora to enforce a shared embedding space. Turkish lowercasing and aggressive web-noise filtering were applied.
 
 \subsection{Model Architecture}
 A 4-layer, 8-head shared Transformer Encoder-Decoder (46M parameters) was implemented using PyTorch. The embedding layer is shared across both languages and tied to the output projection. A language identifier token (\texttt{<TR>} or \texttt{<EN>}) prepended to the encoder input signals the target language.
@@ -40,7 +40,9 @@ The core translation capability emerges during the IBT phase. The model generate
 We established three baselines: 1) A Copy Baseline, 2) A Word-by-Word translation using MUSE-aligned fastText embeddings, and 3) A fully supervised Helsinki-NLP MarianMT model.
 
 \subsection{Training Details}
-Training was conducted on a Google Colab A100 GPU using FP16 mixed precision and gradient accumulation to simulate a large batch size of 128. AdamW was utilized with a cosine learning rate scheduler. The Denoising Autoencoder (DAE) pre-training successfully converged to a best cross-entropy loss of 5.15 after 3 epochs, demonstrating that the model learned the grammar and morphology of both languages prior to the Iterative Back-Translation phase.
+Training was conducted on a Google Colab A100 GPU using FP16 mixed precision and gradient accumulation to simulate a large batch size of 128. AdamW was utilized with a cosine learning rate scheduler. 
+
+Our training progressed in two distinct phases due to dataset size constraints. In our initial attempt using 1,000,000 sentences, the Denoising Autoencoder (DAE) pre-training successfully converged to a best cross-entropy loss of 5.15 after 3 epochs. However, a single Iterative Back-Translation (IBT) iteration took approximately 4 hours, preventing the model from properly aligning the latent spaces. To remedy this, we reduced the dataset size to 200,000 sentences. In this optimized setup, DAE pre-training was extended to 10 epochs (achieving a loss of 6.14), which allowed us to run 10 full IBT iterations.
 
 \section{Results}
 \subsection{Automatic Evaluation}
@@ -55,8 +57,9 @@ Evaluation was performed on the FLORES-200 devtest split (1012 sentences).
 \cmidrule(lr){2-3} \cmidrule(l){4-5} 
  & \textbf{BLEU} & \textbf{chrF} & \textbf{BLEU} & \textbf{chrF} \\ \midrule
 Copy Baseline & 2.82 & - & 2.83 & - \\
-Word-by-Word (MUSE) & 3.25 & 34.63 & 2.46 & 36.00 \\
-UNMT (Our Model - Beam 4) & 0.09 & 3.92 & 0.10 & 5.85 \\ \midrule
+Word-by-Word (MUSE) & 3.25 & 34.63 & 2.46 & 36.00 \\ \midrule
+UNMT (1M Data, 1 IBT Iter) & 0.09 & 3.92 & 0.10 & 5.85 \\
+UNMT (200K Data, 10 IBT Iters) & [TBD] & [TBD] & [TBD] & [TBD] \\ \midrule
 Helsinki-NLP (Supervised) & 30.21 & - & 31.08 & - \\ \bottomrule
 \end{tabular}
 \end{table}
