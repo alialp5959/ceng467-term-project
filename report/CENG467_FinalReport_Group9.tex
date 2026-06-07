@@ -59,7 +59,7 @@ Evaluation was performed on the FLORES-200 devtest split (1012 sentences).
 Copy Baseline & 2.82 & - & 2.83 & - \\
 Word-by-Word (MUSE) & 3.25 & 34.63 & 2.46 & 36.00 \\ \midrule
 UNMT (1M Data, 1 IBT Iter) & 0.09 & 3.92 & 0.10 & 5.85 \\
-UNMT (200K Data, 10 IBT Iters) & [TBD] & [TBD] & [TBD] & [TBD] \\ \midrule
+UNMT (200K Data, 10 IBT Iters) & 0.17 & 6.03 & 0.04 & 0.32 \\ \midrule
 Helsinki-NLP (Supervised) & 30.21 & - & 31.08 & - \\ \bottomrule
 \end{tabular}
 \end{table}
@@ -71,10 +71,18 @@ We manually annotated 50 randomly sampled sentences. The dominant error categori
     \item \textbf{Hallucination:} The model reverting to auto-encoding behavior or generating fluent but unrelated text.
 \end{itemize}
 
-\section{Discussion and Ethical Considerations}
-UNMT models exhibit a high risk of hallucination and bias amplification, particularly when trained on uncurated web data like CC-100. Furthermore, the lack of parallel supervision means the model may silently map completely different semantic concepts to each other if their distributional properties match.
+\section{Discussion and Limitations}
+Our experiments highlight the extreme difficulty of training Unsupervised NMT models from scratch on morphologically distant languages like Turkish and English. Although increasing the IBT iterations from 1 to 10 led to a slight improvement in TR $\rightarrow$ EN translation (0.09 to 0.17 BLEU), the model fundamentally failed to surpass the Word-by-Word baseline (3.25 BLEU).
+
+This negative result is highly instructive and stems from two major bottlenecks:
+\begin{enumerate}
+    \item \textbf{Data and Parameter Starvation:} The original framework by Lample et al. relies on tens of millions of sentences and hundreds of millions of parameters. Our lightweight model (46M parameters) trained on 200,000 sentences simply lacks the capacity and the distributional diversity to perfectly align two entirely distinct latent spaces from scratch.
+    \item \textbf{The Strength of Pre-trained Embeddings:} The Word-by-Word baseline utilizes MUSE embeddings, which are trained on billions of words using fastText and aligned via adversarial networks. Our model attempts to learn this alignment \textit{ex nihilo} (from nothing) using only the DAE and IBT signals, which is mathematically much harder.
+\end{enumerate}
+
+These findings confirm the modern NLP consensus that purely unsupervised NMT from scratch is too unstable for distant language pairs, and massive cross-lingual pre-training (e.g., XLM, mBART) is an absolute necessity to initialize the shared latent space.
 
 \section{Conclusion}
-This project successfully implemented a complete UNMT pipeline. While reaching the performance of supervised systems remains challenging, the model demonstrates the capacity to align latent spaces solely from monolingual distributions. 
+This project successfully implemented a complete UNMT pipeline, exploring the trade-offs between dataset size and iteration counts. While reaching the performance of supervised systems or even strong dictionary-based baselines remains challenging under resource constraints, the methodology demonstrates the theoretical framework of latent space alignment via Iterative Back-Translation. Future work must leverage massive pre-trained cross-lingual language models to overcome the initial alignment barrier.
 
 \end{document}
