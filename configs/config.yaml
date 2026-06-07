@@ -22,7 +22,7 @@ paths:
 data:
   source: "cc100"                    # HuggingFace dataset name
   languages: ["tr", "en"]
-  max_sentences: 1000000             # 1M sentences per language
+  max_sentences: 200000              # 200K sentences per language
   raw_subdir: "data/raw"
   processed_subdir: "data/processed"
 
@@ -71,7 +71,7 @@ training:
   learning_rate: 0.0001
   weight_decay: 0.01
   warmup_steps: 4000
-  max_epochs: 5
+  max_epochs: 10
   checkpoint_every_n_steps: 2000     # Save model + optimizer state
   checkpoint_subdir: "checkpoints"
   log_every_n_steps: 100

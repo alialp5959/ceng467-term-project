@@ -185,8 +185,8 @@ def main():
     parser = argparse.ArgumentParser(description="UNMT Iterative Back-Translation")
     add_base_args(parser)
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to initial DAE checkpoint")
-    parser.add_argument("--iterations", type=int, default=3, help="Number of IBT iterations")
-    parser.add_argument("--sample-size", type=int, default=200000, help="Number of sentences to translate per iteration")
+    parser.add_argument("--iterations", type=int, default=10, help="Number of IBT iterations")
+    parser.add_argument("--sample-size", type=int, default=25000, help="Number of sentences to translate per iteration")
     args = parser.parse_args()
 
     cfg = load_config(args.config, args.base_dir)
