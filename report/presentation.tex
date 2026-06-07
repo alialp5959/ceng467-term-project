@@ -189,15 +189,16 @@
        & BLEU & chrF & BLEU & chrF \\ \midrule
       Copy Baseline         & 2.82 & --    & 2.83  & --    \\
       Word-by-Word (MUSE)   & 3.25 & 34.63 & 2.46  & 36.00 \\
-      \textbf{Our UNMT (1 IBT)}     & \textbf{0.09} & \textbf{3.92} & \textbf{0.10} & \textbf{5.85} \\
+      Our UNMT (1M, 1 IBT)          & 0.09 & 3.92 & 0.10 & 5.85 \\
+      Our UNMT (200K, 10 IBT)       & 0.17 & 6.03 & 0.04 & 0.32 \\
       Helsinki-NLP (Sup.)   & 30.21 & --   & 31.08 & --    \\ \bottomrule
     \end{tabular}
   \end{table}
   \vfill
   \begin{itemize}
-    \item UNMT after 1 IBT iteration — model is still learning to translate
-    \item More iterations significantly improve quality (Lample et al.\ report 10+)
-    \item Gap to supervised model highlights the fundamental difficulty of the task
+    \item Original IBT run used incorrect language conditioning
+    \item Ten iterations slightly improved TR$\rightarrow$EN, while EN$\rightarrow$TR collapsed
+    \item The model did not surpass the word-by-word baseline
   \end{itemize}
 \end{frame}
 
@@ -243,12 +244,12 @@
   \begin{itemize}
     \item Full UNMT pipeline: data $\rightarrow$ training $\rightarrow$ evaluation $\rightarrow$ demo
     \item Trained entirely without parallel data
-    \item Outperforms trivial baselines on FLORES-200
+    \item Identified why the original system failed to beat the baselines
   \end{itemize}
   \vfill
   \textbf{Future improvements:}
   \begin{itemize}
-    \item More IBT iterations (currently 1, plan: 5--10)
+    \item Correct target-language conditioning and rerun IBT
     \item Larger model with more compute budget
     \item Pre-trained embeddings (XLM / mBART initialization)
     \item Morphology-aware tokenization for Turkish

@@ -12,7 +12,7 @@ Lightweight Transformer designed for Colab T4 (16 GB VRAM):
   │  ~46 M parameters                                 │
   └───────────────────────────────────────────────────┘
 
-Both languages share every parameter.  The source language is
+Both languages share every parameter.  The target language is
 indicated by a prefix token (``<TR>`` or ``<EN>``) prepended to
 the encoder input.
 """

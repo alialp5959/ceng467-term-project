@@ -8,13 +8,13 @@ Provides inference utilities for the trained UNMT Transformer:
 
 Usage:
   # Translate a file using greedy search
-  python src/generate.py --checkpoint checkpoints/checkpoint_latest.pt \
+  python src/generate.py --checkpoint checkpoints/checkpoint_ibt_latest.pt \
                          --source-file data/raw/test.tr \
                          --output-file results/test.en.out \
                          --direction tr-en --strategy greedy
 
   # Translate using beam search (beam size 4)
-  python src/generate.py --checkpoint checkpoints/checkpoint_latest.pt \
+  python src/generate.py --checkpoint checkpoints/checkpoint_ibt_latest.pt \
                          --source-file data/raw/test.tr \
                          --output-file results/test.en.out \
                          --direction tr-en --strategy beam --beam-size 4
@@ -53,25 +53,9 @@ def beam_search_decode(
     bos_id: int = 2,
     eos_id: int = 3,
     pad_id: int = 0,
+    length_penalty: float = 0.6,
 ) -> torch.Tensor:
-    """Batched beam search decoding.
-    
-    For simplicity and speed in this baseline, we implement a basic
-    beam search. If beam_size == 1, it falls back to greedy.
-    
-    Args:
-        model: The trained UNMTTransformer.
-        src: (B, S) encoder input.
-        src_key_padding_mask: (B, S) padding mask.
-        beam_size: Number of beams.
-        max_len: Maximum generation length.
-        bos_id: BOS token ID.
-        eos_id: EOS token ID.
-        pad_id: PAD token ID.
-        
-    Returns:
-        (B, max_len) tensor of generated token IDs for the best beam.
-    """
+    """Batched beam search with EOS handling and length normalization."""
     if beam_size == 1:
         return model.greedy_decode(src, src_key_padding_mask, max_len, bos_id, eos_id)
 
@@ -79,35 +63,30 @@ def beam_search_decode(
     batch_size = src.size(0)
     device = src.device
 
-    # Encode source
-    memory = model.encode(src, src_key_padding_mask=src_key_padding_mask)  # (B, S, D)
-
-    # We need to maintain state for each beam
-    # Initialize beams: (B, beam_size, seq_len)
+    memory = model.encode(src, src_key_padding_mask=src_key_padding_mask)
     alive_seqs = torch.full((batch_size, beam_size, 1), bos_id, dtype=torch.long, device=device)
-    # Log probabilities of each beam: (B, beam_size)
     alive_log_probs = torch.zeros(batch_size, beam_size, device=device)
-    # First step only beam 0 is valid, others -inf
     alive_log_probs[:, 1:] = float('-inf')
 
-    # Expand memory for beams: (B * beam_size, S, D)
     memory_beam = memory.unsqueeze(1).expand(-1, beam_size, -1, -1).reshape(batch_size * beam_size, memory.size(1), -1)
     if src_key_padding_mask is not None:
         src_mask_beam = src_key_padding_mask.unsqueeze(1).expand(-1, beam_size, -1).reshape(batch_size * beam_size, -1)
     else:
         src_mask_beam = None
 
-    finished_seqs = torch.zeros(batch_size, beam_size, max_len, dtype=torch.long, device=device)
+    finished_seqs = torch.full(
+        (batch_size, beam_size, max_len),
+        pad_id,
+        dtype=torch.long,
+        device=device,
+    )
     finished_scores = torch.full((batch_size, beam_size), float('-inf'), device=device)
-    finished_flags = torch.zeros(batch_size, beam_size, dtype=torch.bool, device=device)
 
-    for step in range(1, max_len):
-        # Flatten alive sequences to feed into model
-        flat_seqs = alive_seqs.reshape(batch_size * beam_size, -1)  # (B*beam_size, step)
+    for _ in range(1, max_len):
+        flat_seqs = alive_seqs.reshape(batch_size * beam_size, -1)
         tgt_mask = model._causal_mask(flat_seqs.size(1), device)
         tgt_pad_mask = (flat_seqs == pad_id)
 
-        # Decode
         decoded = model.decoder(
             model._embed(flat_seqs),
             memory_beam,
@@ -115,49 +94,99 @@ def beam_search_decode(
             tgt_key_padding_mask=tgt_pad_mask,
             memory_key_padding_mask=src_mask_beam,
         )
-        # Get logits for the last token
-        logits = model.output_proj(decoded[:, -1, :])  # (B*beam_size, V)
-        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)  # (B*beam_size, V)
-        log_probs = log_probs.reshape(batch_size, beam_size, -1)  # (B, beam_size, V)
+        logits = model.output_proj(decoded[:, -1, :])
+        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        log_probs = log_probs.reshape(batch_size, beam_size, -1)
 
-        # Add current beam scores
-        next_scores = alive_log_probs.unsqueeze(-1) + log_probs  # (B, beam_size, V)
-        
-        # Flatten beam and vocab dimensions to find top-k
-        next_scores_flat = next_scores.reshape(batch_size, -1)  # (B, beam_size * V)
-        topk_scores, topk_indices = torch.topk(next_scores_flat, beam_size, dim=-1)  # (B, beam_size)
+        next_scores = alive_log_probs.unsqueeze(-1) + log_probs
+        next_scores_flat = next_scores.reshape(batch_size, -1)
+        candidate_count = min(beam_size * 2, next_scores_flat.size(1))
+        topk_scores, topk_indices = torch.topk(
+            next_scores_flat, candidate_count, dim=-1
+        )
 
-        # Recover beam index and vocab token
         vocab_size = log_probs.size(-1)
-        prev_beam_indices = topk_indices // vocab_size  # (B, beam_size)
-        next_tokens = topk_indices % vocab_size         # (B, beam_size)
+        prev_beam_indices = topk_indices // vocab_size
+        next_tokens = topk_indices % vocab_size
 
-        # Gather previous sequences
         prev_seqs = torch.gather(
-            alive_seqs, 1, 
+            alive_seqs,
+            1,
             prev_beam_indices.unsqueeze(-1).expand(-1, -1, alive_seqs.size(-1))
-        )  # (B, beam_size, step)
+        )
+        candidate_seqs = torch.cat(
+            [prev_seqs, next_tokens.unsqueeze(-1)], dim=-1
+        )
+        is_eos = next_tokens == eos_id
 
-        # Append new tokens
-        alive_seqs = torch.cat([prev_seqs, next_tokens.unsqueeze(-1)], dim=-1)  # (B, beam_size, step+1)
-        alive_log_probs = topk_scores
+        normalized_scores = topk_scores / (
+            ((5.0 + candidate_seqs.size(-1)) / 6.0) ** length_penalty
+        )
+        new_finished_scores = normalized_scores.masked_fill(
+            ~is_eos, float("-inf")
+        )
+        new_finished_seqs = torch.full(
+            (batch_size, candidate_count, max_len),
+            pad_id,
+            dtype=torch.long,
+            device=device,
+        )
+        new_finished_seqs[:, :, :candidate_seqs.size(-1)] = candidate_seqs
 
-        # Check for EOS
-        is_eos = (next_tokens == eos_id)
-        
-        # If any beam finished, save it (simplified approach: just keep generating and mask later, 
-        # or rely on max_len for basic baseline evaluation)
-        # For full correctness, we should move finished sequences to finished_seqs. 
-        # But for UNMT baseline, generating up to max_len or first EOS during extraction is fine.
+        combined_finished_scores = torch.cat(
+            [finished_scores, new_finished_scores], dim=1
+        )
+        combined_finished_seqs = torch.cat(
+            [finished_seqs, new_finished_seqs], dim=1
+        )
+        finished_scores, finished_indices = torch.topk(
+            combined_finished_scores, beam_size, dim=1
+        )
+        finished_seqs = torch.gather(
+            combined_finished_seqs,
+            1,
+            finished_indices.unsqueeze(-1).expand(-1, -1, max_len),
+        )
 
-    # Pick the best sequence from alive_seqs
-    best_beam_idx = alive_log_probs.argmax(dim=-1)  # (B,)
-    best_seqs = torch.gather(
-        alive_seqs, 1, 
-        best_beam_idx.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, alive_seqs.size(-1))
-    ).squeeze(1)  # (B, step+1)
+        alive_candidate_scores = topk_scores.masked_fill(
+            is_eos, float("-inf")
+        )
+        alive_log_probs, alive_indices = torch.topk(
+            alive_candidate_scores, beam_size, dim=1
+        )
+        alive_seqs = torch.gather(
+            candidate_seqs,
+            1,
+            alive_indices.unsqueeze(-1).expand(
+                -1, -1, candidate_seqs.size(-1)
+            ),
+        )
 
-    return best_seqs
+    best_finished_idx = finished_scores.argmax(dim=-1)
+    best_finished = torch.gather(
+        finished_seqs,
+        1,
+        best_finished_idx.view(-1, 1, 1).expand(-1, 1, max_len),
+    ).squeeze(1)
+
+    alive_scores = alive_log_probs / (
+        ((5.0 + alive_seqs.size(-1)) / 6.0) ** length_penalty
+    )
+    best_alive_idx = alive_scores.argmax(dim=-1)
+    best_alive = torch.gather(
+        alive_seqs,
+        1,
+        best_alive_idx.view(-1, 1, 1).expand(-1, 1, alive_seqs.size(-1)),
+    ).squeeze(1)
+    best_alive_padded = torch.full(
+        (batch_size, max_len), pad_id, dtype=torch.long, device=device
+    )
+    best_alive_padded[:, :best_alive.size(1)] = best_alive
+
+    has_finished = torch.isfinite(finished_scores[:, 0])
+    return torch.where(
+        has_finished.unsqueeze(1), best_finished, best_alive_padded
+    )
 
 
 # ════════════════════════════════════════════════════════════
@@ -174,11 +203,22 @@ def translate_lines(
     beam_size: int = 4,
     batch_size: int = 32,
     max_len: int = 128,
+    length_penalty: float = 0.6,
 ) -> List[str]:
-    """Translate a list of strings in batches."""
+    """Translate text while conditioning on the requested target language."""
     model.eval()
-    
-    src_lang_id = sp.piece_to_id(f"<{src_lang.upper()}>")
+
+    normalized_src_lang = src_lang.lower()
+    target_by_source = {"tr": "en", "en": "tr"}
+    if normalized_src_lang not in target_by_source:
+        raise ValueError(f"Unsupported source language: {src_lang}")
+    target_lang = target_by_source[normalized_src_lang]
+    target_lang_id = sp.piece_to_id(f"<{target_lang.upper()}>")
+    if target_lang_id == sp.unk_id():
+        raise ValueError(
+            f"Target language token <{target_lang.upper()}> is missing"
+        )
+
     bos_id = sp.bos_id()
     eos_id = sp.eos_id()
     pad_id = sp.pad_id()
@@ -191,8 +231,8 @@ def translate_lines(
         # Encode with SP
         batch_ids = [sp.encode(line, out_type=int) for line in batch_lines]
         
-        # Add LANG token at the beginning
-        batch_ids = [[src_lang_id] + ids for ids in batch_ids]
+        # The prefix tells the shared model which language to generate.
+        batch_ids = [[target_lang_id] + ids for ids in batch_ids]
         
         # Pad sequences
         max_batch_len = min(max_len, max(len(ids) for ids in batch_ids))
@@ -214,7 +254,8 @@ def translate_lines(
             else:
                 pred_ids = beam_search_decode(
                     model, src_tensor, src_mask, beam_size=beam_size, 
-                    max_len=max_len, bos_id=bos_id, eos_id=eos_id, pad_id=pad_id
+                    max_len=max_len, bos_id=bos_id, eos_id=eos_id, pad_id=pad_id,
+                    length_penalty=length_penalty,
                 )
                 
         # Decode SP IDs back to text
@@ -226,6 +267,7 @@ def translate_lines(
             # remove BOS if present at start
             if seq and seq[0] == bos_id:
                 seq = seq[1:]
+            seq = [token_id for token_id in seq if token_id != pad_id]
             text = sp.decode(seq)
             outputs.append(text)
             
@@ -242,6 +284,7 @@ def main():
     parser.add_argument("--strategy", type=str, default="greedy", choices=["greedy", "beam"], help="Decoding strategy")
     parser.add_argument("--beam-size", type=int, default=4, help="Beam size (if strategy is beam)")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+    parser.add_argument("--length-penalty", type=float, default=0.6, help="Beam-search length penalty")
     args = parser.parse_args()
 
     cfg = load_config(args.config, args.base_dir)
@@ -269,10 +312,16 @@ def main():
     log.info(f"Translating {len(lines)} lines ({args.direction}) using {args.strategy} search...")
     translations = translate_lines(
         lines, model, sp, src_lang, device, 
-        strategy=args.strategy, beam_size=args.beam_size, batch_size=args.batch_size
+        strategy=args.strategy,
+        beam_size=args.beam_size,
+        batch_size=args.batch_size,
+        max_len=cfg["model"]["max_seq_len"],
+        length_penalty=args.length_penalty,
     )
     
-    os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
+    output_dir = os.path.dirname(args.output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     with open(args.output_file, "w", encoding="utf-8") as f:
         for t in translations:
             f.write(t + "\n")

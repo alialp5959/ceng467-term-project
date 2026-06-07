@@ -10,7 +10,7 @@ Computes:
 for both TR->EN and EN->TR directions.
 
 Usage:
-  python src/evaluate.py --checkpoint checkpoints/checkpoint_latest.pt --strategy beam
+  python src/evaluate.py --checkpoint checkpoints/checkpoint_ibt_latest.pt --strategy beam
 """
 
 import os
@@ -55,7 +55,11 @@ def evaluate_direction(src_lines, ref_lines, model, sp, src_lang, device, args):
     
     hypotheses = translate_lines(
         src_lines, model, sp, src_lang, device, 
-        strategy=args.strategy, beam_size=args.beam_size, batch_size=args.batch_size
+        strategy=args.strategy,
+        beam_size=args.beam_size,
+        batch_size=args.batch_size,
+        max_len=args.max_len,
+        length_penalty=args.length_penalty,
     )
     
     log.info("Computing metrics...")
@@ -73,13 +77,19 @@ def main():
     add_base_args(parser)
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint")
     parser.add_argument("--strategy", type=str, default="beam", choices=["greedy", "beam"], help="Decoding strategy")
-    parser.add_argument("--beam-size", type=int, default=4, help="Beam size")
+    parser.add_argument("--beam-size", type=int, default=None, help="Beam size")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size for generation")
+    parser.add_argument("--max-len", type=int, default=None, help="Maximum output tokens")
+    parser.add_argument("--length-penalty", type=float, default=None, help="Beam-search length penalty")
     parser.add_argument("--output-csv", type=str, default="results/evaluation.csv", help="Where to save results")
     args = parser.parse_args()
 
     cfg = load_config(args.config, args.base_dir)
     device = get_device()
+    args.beam_size = args.beam_size or cfg["evaluation"].get("beam_size", 4)
+    args.max_len = args.max_len or cfg["model"]["max_seq_len"]
+    if args.length_penalty is None:
+        args.length_penalty = cfg["evaluation"].get("length_penalty", 0.6)
     
     # 1. Load Data
     tr_refs, en_refs = get_flores_data(cfg)
@@ -92,6 +102,10 @@ def main():
     # 3. Load Model
     log.info(f"Loading checkpoint {args.checkpoint}...")
     checkpoint = torch.load(args.checkpoint, map_location=device)
+    if "iteration" in checkpoint:
+        log.info(f"Evaluating IBT iteration {checkpoint['iteration']}")
+    else:
+        log.warning("Checkpoint has no IBT iteration marker; this may be a DAE-only model.")
     model = build_model(cfg, vocab_size=sp.get_piece_size(), pad_id=sp.pad_id())
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(device)
@@ -110,7 +124,7 @@ def main():
     log.info(f"EN->TR | BLEU: {en2tr_bleu.score:.2f} | chrF: {en2tr_chrf.score:.2f}")
     
     # 6. Save results to CSV for analysis
-    out_path = resolve_path(cfg, "paths", "base_dir")
+    out_path = cfg["paths"]["base_dir"]
     out_file = os.path.join(out_path, args.output_csv)
     ensure_dir(os.path.dirname(out_file))
     

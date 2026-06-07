@@ -6,7 +6,7 @@ A Gradio-based web interface to test the UNMT model live.
 Perfect for the final project presentation or Colab demonstration.
 
 Usage:
-  python src/demo.py --checkpoint checkpoints/checkpoint_latest.pt
+  python src/demo.py --checkpoint checkpoints/checkpoint_ibt_latest.pt
 """
 
 import os

@@ -284,10 +284,9 @@ def clean_corpus(cfg: dict) -> None:
         seen = set() if cfg_pre.get("dedup", True) else None
         kept, dropped, dupes = 0, 0, 0
 
-        with (
-            open(in_path, "r", encoding="utf-8") as fin,
-            open(out_path, "w", encoding="utf-8") as fout,
-        ):
+        with open(in_path, "r", encoding="utf-8") as fin, open(
+            out_path, "w", encoding="utf-8"
+        ) as fout:
             for raw_line in fin:
                 cleaned = clean_line(raw_line, cfg_pre, lang)
 
@@ -454,10 +453,9 @@ def tokenize_corpus(cfg: dict) -> None:
 
         count = 0
         total_pieces = 0
-        with (
-            open(in_path, "r", encoding="utf-8") as fin,
-            open(out_path, "w", encoding="utf-8") as fout,
-        ):
+        with open(in_path, "r", encoding="utf-8") as fin, open(
+            out_path, "w", encoding="utf-8"
+        ) as fout:
             for line in fin:
                 line = line.strip()
                 if not line:

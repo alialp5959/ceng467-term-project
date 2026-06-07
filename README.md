@@ -1,78 +1,124 @@
-# CENG467 Term Project - Unsupervised Neural Machine Translation (UNMT)
+# CENG467 Term Project - Unsupervised Neural Machine Translation
 
-**Group 9**: [Your Name/ID Here]
+**Group 9:** Ali Alp Harac and Ihsan Yagiz Sakizlioglu
 
-This repository contains the complete implementation of our Unsupervised Neural Machine Translation (UNMT) system for Turkish-English, trained without any parallel data using Denoising Autoencoder (DAE) and Iterative Back-Translation (IBT), following the methodology of Lample et al. (2018).
+This repository implements an unsupervised Turkish-English translation
+pipeline using a shared Transformer, denoising autoencoder (DAE), and
+iterative back-translation (IBT).
 
-## Features
+## Pipeline
 
-- **Full Pipeline**: Data downloading, cleaning, joint SentencePiece vocabulary training, model training, and evaluation.
-- **Lightweight Architecture**: 4-layer Transformer Encoder-Decoder (46M parameters) optimized for Google Colab T4.
-- **Denoising Autoencoder (DAE)**: Word shuffle, dropout, and mask noise generation.
-- **Iterative Back-Translation (IBT)**: Synthetic parallel data generation and alternating cross-entropy/DAE training.
-- **Comprehensive Evaluation**: Automated BLEU and chrF scoring on FLORES-200.
-- **Interactive Demo**: Gradio-based web interface for testing translations live.
+- CC-100 monolingual data download and cleaning
+- Joint 32K SentencePiece vocabulary
+- Shared 4-layer Transformer encoder-decoder
+- Turkish and English DAE pretraining
+- Bidirectional iterative back-translation
+- FLORES-200 BLEU and chrF evaluation
+- Gradio translation demo
 
-## Quick Start (Google Colab)
+Python 3.8 or newer is supported.
 
-The project is designed to run seamlessly on Google Colab, leveraging Google Drive for data storage and checkpointing.
+## Google Colab
 
-1. **Mount Drive & Clone Repository**:
-   ```python
-   from google.colab import drive
-   drive.mount('/content/drive')
-   
-   !git clone https://github.com/alialp5959/ceng467-term-project.git
-   %cd ceng467-term-project
-   ```
+```python
+from google.colab import drive
+drive.mount("/content/drive")
 
-2. **Install Dependencies**:
-   ```python
-   !pip install -r requirements.txt
-   ```
+!git clone https://github.com/alialp5959/ceng467-term-project.git
+%cd ceng467-term-project
+!pip install -r requirements.txt
+```
 
-3. **Run Preprocessing Pipeline** (Downloads CC-100, cleans it, and trains SentencePiece):
-   ```python
-   !python src/preprocess.py --step all
-   ```
+### 1. Preprocess
 
-4. **Train Denoising Autoencoder (DAE)**:
-   ```python
-   !python src/train_autoencoder.py
-   ```
+```bash
+python src/preprocess.py --step all
+```
 
-5. **Iterative Back-Translation (IBT)**:
-   ```python
-   !python src/backtranslate.py --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt --iterations 3
-   ```
+### 2. Train the DAE
 
-6. **Evaluate on FLORES-200**:
-   ```python
-   !python src/evaluate.py --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt
-   ```
+```bash
+python src/train_autoencoder.py
+```
 
-7. **Launch Live Demo**:
-   ```python
-   !python src/demo.py --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt
-   ```
+The DAE checkpoint is saved as:
 
-## Repository Structure
+```text
+/content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt
+```
 
-- `configs/`: YAML configuration files.
-- `src/`: Core implementation scripts.
-  - `preprocess.py`: CC-100 dataset download, filtering, and tokenization.
-  - `model.py`: Transformer architecture.
-  - `noise.py`: DAE noise functions (shuffle, dropout, mask).
-  - `dataset.py`: Dataloaders for monolingual and synthetic parallel data.
-  - `train_autoencoder.py`: DAE training loop.
-  - `generate.py`: Greedy and Beam Search decoding.
-  - `backtranslate.py`: IBT training loop.
-  - `evaluate.py`: BLEU/chrF evaluation on FLORES-200.
-  - `error_analysis.py`: Sample generator for manual qualitative review.
-  - `demo.py`: Gradio interface.
-- `report/`: LaTeX source for the final project report.
+### 3. Run corrected IBT
 
-## Baseline Results (Checkpoint)
-- **Copy Baseline**: TR->EN: 2.82 BLEU, EN->TR: 2.83 BLEU
-- **Word-by-Word MUSE Baseline**: ~1-2 BLEU
-- **Helsinki-NLP (Supervised Reference)**: TR->EN: 30.21 BLEU, EN->TR: 31.08 BLEU
+```bash
+python src/backtranslate.py \
+  --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_latest.pt \
+  --iterations 10 \
+  --force-regenerate
+```
+
+`--force-regenerate` is recommended for the first run after the
+target-language-prefix fix. Later interrupted runs can reuse verified caches.
+
+IBT checkpoints are saved separately:
+
+```text
+checkpoint_ibt_iter1.pt
+checkpoint_ibt_iter2.pt
+...
+checkpoint_ibt_iter10.pt
+checkpoint_ibt_latest.pt
+```
+
+Resume an interrupted run with:
+
+```bash
+python src/backtranslate.py \
+  --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_ibt_latest.pt \
+  --iterations 10
+```
+
+### 4. Evaluate the IBT model
+
+Do not evaluate `checkpoint_latest.pt`; that file is the DAE-only checkpoint.
+
+```bash
+python src/evaluate.py \
+  --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_ibt_iter10.pt \
+  --strategy beam
+```
+
+### 5. Launch the demo
+
+```bash
+python src/demo.py \
+  --checkpoint /content/drive/MyDrive/CENG467_Project/checkpoints/checkpoint_ibt_iter10.pt
+```
+
+## Important Training Fixes
+
+The current implementation:
+
+- prefixes translation inputs with the **target** language token;
+- uses `<TR>` for synthetic-English to real-Turkish training;
+- uses `<EN>` for synthetic-Turkish to real-English training;
+- mixes DAE loss into every IBT iteration;
+- samples different monolingual sentences each iteration;
+- keeps optimizer state when resuming IBT;
+- rejects stale synthetic caches using model and sample fingerprints;
+- evaluates explicit IBT checkpoints;
+- uses EOS-aware beam search with length normalization.
+
+## Historical Results
+
+These scores belong to the original run before the corrected IBT pipeline was
+rerun:
+
+| Model | TR->EN BLEU | EN->TR BLEU |
+|---|---:|---:|
+| Copy baseline | 2.82 | 2.83 |
+| Word-by-word MUSE | 3.25 | 2.46 |
+| Original UNMT, 1 IBT | 0.09 | 0.10 |
+| Original UNMT, 10 IBT | 0.17 | 0.04 |
+| Helsinki-NLP supervised reference | 30.21 | 31.08 |
+
+The corrected pipeline must be rerun before reporting new UNMT scores.
