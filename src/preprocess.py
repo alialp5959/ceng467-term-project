@@ -306,7 +306,11 @@ def clean_corpus(cfg: dict) -> None:
                 fout.write(cleaned + "\n")
                 kept += 1
 
-                if kept % 200_000 == 0:
+                if kept >= cfg["data"]["max_sentences"]:
+                    log.info(f"  [{lang.upper()}] Reached max_sentences limit ({kept:,}). Stopping early.")
+                    break
+
+                if kept % 50_000 == 0:
                     log.info(
                         f"  [{lang.upper()}] kept={kept:,}  "
                         f"dropped={dropped:,}  dupes={dupes:,}"
