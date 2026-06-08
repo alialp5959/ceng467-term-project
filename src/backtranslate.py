@@ -87,11 +87,13 @@ def collate_parallel(
 ):
     """Build ``[TARGET_LANG] + source`` and teacher-forced target tensors."""
     src_list = []
-    tgt_list = []
+    dec_in_list = []
+    dec_tgt_list = []
     for src_ids, tgt_ids in batch:
         src_list.append([target_lang_id] + src_ids[: max_len - 1])
-        tgt_list.append([bos_id] + tgt_ids[: max_len - 2] + [eos_id])
-    return pad_sequences(src_list, pad_id), pad_sequences(tgt_list, pad_id)
+        dec_in_list.append([bos_id] + tgt_ids[: max_len - 1])
+        dec_tgt_list.append(tgt_ids[: max_len - 1] + [eos_id])
+    return pad_sequences(src_list, pad_id), pad_sequences(dec_in_list, pad_id), pad_sequences(dec_tgt_list, pad_id)
 
 
 def model_fingerprint(model: torch.nn.Module) -> str:
@@ -183,20 +185,18 @@ def save_synthetic_cache(
         json.dump(metadata, handle, indent=2, sort_keys=True)
 
 
-def translation_loss(model, src, tgt, pad_id):
+def translation_loss(model, src, dec_in, dec_tgt, pad_id):
     src_mask = src == pad_id
-    tgt_in = tgt[:, :-1]
-    tgt_out = tgt[:, 1:]
-    tgt_mask = tgt_in == pad_id
+    tgt_mask = dec_in == pad_id
     logits = model(
         src,
-        tgt_in,
+        dec_in,
         src_key_padding_mask=src_mask,
         tgt_key_padding_mask=tgt_mask,
     )
     return F.cross_entropy(
         logits.reshape(-1, logits.size(-1)),
-        tgt_out.reshape(-1),
+        dec_tgt.reshape(-1),
         ignore_index=pad_id,
     )
 
@@ -282,16 +282,17 @@ def train_iteration(
     progress = tqdm(range(total_batches), desc="IBT Iter {}".format(iteration))
     for batch_index in progress:
         if batch_index % 2 == 0:
-            src, tgt = next(en_tr_iter)
+            src, dec_in, dec_tgt = next(en_tr_iter)
             dae_batch = next(tr_dae_iter)
             dae_lang_id = tr_lang_id
         else:
-            src, tgt = next(tr_en_iter)
+            src, dec_in, dec_tgt = next(tr_en_iter)
             dae_batch = next(en_dae_iter)
             dae_lang_id = en_lang_id
 
         src = src.to(device)
-        tgt = tgt.to(device)
+        dec_in = dec_in.to(device)
+        dec_tgt = dec_tgt.to(device)
         dae_inputs = prepare_dae_batch(
             dae_batch,
             dae_lang_id,
@@ -307,7 +308,7 @@ def train_iteration(
         accumulation_divisor = min(grad_acc, total_batches - group_start)
 
         with autocast(enabled=use_fp16):
-            bt_loss = translation_loss(model, src, tgt, pad_id)
+            bt_loss = translation_loss(model, src, dec_in, dec_tgt, pad_id)
             dae_logits = model(
                 dae_src,
                 dae_tgt_in,
