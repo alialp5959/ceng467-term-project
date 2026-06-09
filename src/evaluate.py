@@ -82,6 +82,7 @@ def main():
     parser.add_argument("--max-len", type=int, default=None, help="Maximum output tokens")
     parser.add_argument("--length-penalty", type=float, default=None, help="Beam-search length penalty")
     parser.add_argument("--output-csv", type=str, default="results/evaluation.csv", help="Where to save results")
+    parser.add_argument("--limit", type=int, default=None, help="Evaluate only the first N FLORES examples for quick sanity checks")
     args = parser.parse_args()
 
     cfg = load_config(args.config, args.base_dir)
@@ -93,6 +94,10 @@ def main():
     
     # 1. Load Data
     tr_refs, en_refs = get_flores_data(cfg)
+    if args.limit is not None:
+        log.info(f"Using only first {args.limit} examples for evaluation.")
+        tr_refs = tr_refs[:args.limit]
+        en_refs = en_refs[:args.limit]
     
     # 2. Load SP
     proc_dir = resolve_path(cfg, "data", "processed_subdir")

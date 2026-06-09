@@ -443,16 +443,40 @@ def main():
     log.info("Loading SentencePiece model and monolingual datasets...")
     sp = spm.SentencePieceProcessor(model_file=sp_model_path)
     dataset_max_len = cfg["model"]["max_seq_len"] - 2
+    max_len = cfg["model"]["max_seq_len"] - 2
+
+    train_files = cfg.get("data", {}).get("train_files", {})
+
+    def _resolve_train_file(value, default_name):
+        name = value or default_name
+
+        # Absolute path ise direkt kullan.
+        if os.path.isabs(name):
+            return name
+
+        # Config içinde "data/processed/..." gibi path varsa base_dir ile çöz.
+        if os.path.dirname(name):
+            return os.path.join(cfg["paths"]["base_dir"], name)
+
+        # Sadece dosya adıysa processed dir altında çöz.
+        return os.path.join(proc_dir, name)
+
+    tr_train_file = _resolve_train_file(train_files.get("tr"), "clean.tr.txt")
+    en_train_file = _resolve_train_file(train_files.get("en"), "clean.en.txt")
+
+    log.info("  TR file  : %s", tr_train_file)
+    log.info("  EN file  : %s", en_train_file)
+
     tr_dataset = MonolingualDataset(
-        os.path.join(proc_dir, "clean.tr.txt"),
+        tr_train_file,
         sp_model_path,
-        max_len=dataset_max_len,
+        max_len=max_len,
         cache_dir=proc_dir,
     )
     en_dataset = MonolingualDataset(
-        os.path.join(proc_dir, "clean.en.txt"),
+        en_train_file,
         sp_model_path,
-        max_len=dataset_max_len,
+        max_len=max_len,
         cache_dir=proc_dir,
     )
 

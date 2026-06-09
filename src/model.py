@@ -140,9 +140,29 @@ class UNMTTransformer(nn.Module):
     # ────────────────────────────────────────────────────────
 
     def _init_weights(self):
-        """Xavier uniform init for matrices, zeros for biases."""
+        """Stable Transformer initialisation.
+
+        Important:
+        The embedding matrix is shared with the output projection.
+        If the embedding keeps PyTorch's default N(0, 1) init while
+        inputs are scaled by sqrt(d_model), logits become extremely
+        large at step 0. This causes CE loss in the hundreds and makes
+        greedy decoding collapse into repetition loops.
+
+        We initialise embeddings with std = d_model^-0.5, so after
+        sqrt(d_model) scaling the embedded activations have roughly
+        unit scale, while the tied output projection remains stable.
+        """
+        nn.init.normal_(self.embedding.weight, mean=0.0, std=self.d_model ** -0.5)
+
+        if self.pad_id is not None:
+            with torch.no_grad():
+                self.embedding.weight[self.pad_id].fill_(0)
+
         for name, p in self.named_parameters():
-            if p.dim() > 1 and "embedding" not in name:
+            if name == "embedding.weight":
+                continue
+            if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
             elif "bias" in name:
                 nn.init.zeros_(p)

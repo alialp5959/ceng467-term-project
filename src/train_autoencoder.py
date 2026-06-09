@@ -182,6 +182,8 @@ def train_one_epoch(
     global_step: int,
     device: torch.device,
     ckpt_dir: str,
+    max_update_steps: int = None,
+    run_start_step: int = None,
 ) -> tuple:
     """Train for one full epoch (alternating TR / EN DAE batches).
 
@@ -205,6 +207,11 @@ def train_one_epoch(
     t0 = time.time()
 
     optimizer.zero_grad()
+
+    if run_start_step is None:
+        run_start_step = global_step
+
+    stop_training = False
 
     for batch, lang_id in alternating_loader(
         tr_loader, en_loader, tr_lang_id, en_lang_id
@@ -248,6 +255,15 @@ def train_one_epoch(
             scheduler.step()
             global_step += 1
 
+            if max_update_steps is not None and (global_step - run_start_step) >= max_update_steps:
+                log.info(f"  Max update steps reached for this run: {max_update_steps}")
+                save_checkpoint(
+                    model, optimizer, scheduler, scaler,
+                    epoch, global_step, ckpt_dir,
+                    tag=f"controlled_step_{global_step}",
+                )
+                stop_training = True
+
         # ── Logging ──────────────────────────────────────────
         if n_batches % (log_every * accum_steps) == 0 and n_tokens > 0:
             avg = total_loss / n_tokens
@@ -260,6 +276,9 @@ def train_one_epoch(
                 f"loss {avg:.4f} │ ppl {ppl:8.2f} │ "
                 f"lr {lr:.6f} │ {tok_per_sec:,.0f} tok/s"
             )
+
+        if stop_training:
+            break
 
         # ── Periodic checkpoint ──────────────────────────────
         if (
@@ -290,6 +309,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=None, help="Override max_epochs")
     parser.add_argument("--batch-size", type=int, default=None, help="Override batch_size")
     parser.add_argument("--lr", type=float, default=None, help="Override learning_rate")
+    parser.add_argument("--max-steps", type=int, default=None, help="Stop after this many optimizer update steps in this run")
     args = parser.parse_args()
 
     # ── Environment ──────────────────────────────────────────
@@ -343,12 +363,22 @@ def main():
 
     # ── Datasets ─────────────────────────────────────────────
     max_len = cfg["model"]["max_seq_len"] - 2  # room for LANG + BOS/EOS
+    train_files = cfg.get("data", {}).get("train_files", {})
+    tr_train_file = train_files.get("tr", "clean.tr.txt")
+    en_train_file = train_files.get("en", "clean.en.txt")
+
+    tr_path = os.path.join(proc_dir, tr_train_file)
+    en_path = os.path.join(proc_dir, en_train_file)
+
+    log.info(f"  TR file  : {tr_path}")
+    log.info(f"  EN file  : {en_path}")
+
     tr_data = MonolingualDataset(
-        os.path.join(proc_dir, "clean.tr.txt"), sp_model_path,
+        tr_path, sp_model_path,
         max_len=max_len, cache_dir=proc_dir,
     )
     en_data = MonolingualDataset(
-        os.path.join(proc_dir, "clean.en.txt"), sp_model_path,
+        en_path, sp_model_path,
         max_len=max_len, cache_dir=proc_dir,
     )
     log.info(f"  TR data  : {len(tr_data):,} sentences")
@@ -421,6 +451,8 @@ def main():
             global_step=global_step,
             device=device,
             ckpt_dir=ckpt_dir,
+            max_update_steps=args.max_steps,
+            run_start_step=global_step,
         )
         t_elapsed = time.time() - t_start
 
@@ -440,6 +472,10 @@ def main():
             model, optimizer, scheduler, scaler,
             epoch + 1, global_step, ckpt_dir, tag=tag,
         )
+
+        if args.max_steps is not None:
+            log.info("  Controlled max-steps run finished; stopping before next epoch.")
+            break
 
     log.info("")
     log.info("═" * 65)

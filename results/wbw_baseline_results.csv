@@ -1,0 +1,3 @@
+model,direction,BLEU,chrF,status
+Word-by-Word Baseline (MUSE fastText),TR->EN,3.25,34.63,Complete
+Word-by-Word Baseline (MUSE fastText),EN->TR,2.46,36.0,Complete
