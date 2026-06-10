@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from typing import List, Tuple
 
@@ -183,6 +184,134 @@ def save_synthetic_cache(
     write_lines(synth_tr_path, synth_tr)
     with open(metadata_path, "w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, sort_keys=True)
+
+
+
+def _filter_tokens(text: str) -> List[str]:
+    return re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜ]+|\d+", str(text).lower())
+
+
+def _copy_overlap_ratio(source: str, hypothesis: str) -> float:
+    src_tokens = set(_filter_tokens(source))
+    hyp_tokens = set(_filter_tokens(hypothesis))
+    if not hyp_tokens:
+        return 1.0
+    return len(src_tokens & hyp_tokens) / max(len(hyp_tokens), 1)
+
+
+def _target_language_ok(text: str, target_lang: str) -> bool:
+    text = str(text).strip()
+    if not text:
+        return False
+
+    tr_chars = re.findall(r"[çğıöşüÇĞİÖŞÜ]", text)
+    en_words = re.findall(
+        r"\b(the|and|of|to|in|is|are|was|were|have|has|with|for|that|this|from|not|on|as|by|or|be|can|will|new|old|right|left|when|where|what|who|which)\b",
+        text,
+        flags=re.I,
+    )
+    tr_words = re.findall(
+        r"\b(bir|ve|bu|şu|için|ile|olarak|olan|daha|çok|de|da|gibi|sonra|önce|kadar|var|yok|oldu|olabilir|Türkiye|Türk)\b",
+        text,
+        flags=re.I,
+    )
+
+    if target_lang == "en":
+        # Reject obvious Turkish-looking output without English evidence.
+        if len(tr_chars) >= 3 and len(en_words) == 0:
+            return False
+        return True
+
+    if target_lang == "tr":
+        # Reject obvious English-looking output without Turkish evidence.
+        if len(en_words) >= 3 and len(tr_chars) == 0 and len(tr_words) == 0:
+            return False
+        return True
+
+    return True
+
+
+def _pseudo_pair_ok(source: str, hypothesis: str, target_lang: str, cfg: dict) -> Tuple[bool, str]:
+    filter_cfg = cfg.get("backtranslation", {}).get("pseudo_filter", {})
+    min_words = int(filter_cfg.get("min_words", 3))
+
+    hyp = str(hypothesis).strip()
+    if not hyp:
+        return False, "empty"
+
+    words = _filter_tokens(hyp)
+    if len(words) < min_words:
+        return False, "too_short"
+
+    if not _target_language_ok(hyp, target_lang):
+        return False, "wrong_language"
+
+    copy_threshold = float(filter_cfg.get("copy_threshold", 0.55))
+    overlap = _copy_overlap_ratio(source, hyp)
+    if overlap > copy_threshold:
+        return False, "copy_like"
+
+    return True, "keep"
+
+
+def filter_synthetic_pairs(
+    synthetic_en: List[str],
+    real_tr: List[str],
+    synthetic_tr: List[str],
+    real_en: List[str],
+    cfg: dict,
+) -> Tuple[List[str], List[str], List[str], List[str]]:
+    filter_cfg = cfg.get("backtranslation", {}).get("pseudo_filter", {})
+    if not filter_cfg.get("enabled", False):
+        return synthetic_en, real_tr, synthetic_tr, real_en
+
+    filtered_synthetic_en = []
+    filtered_real_tr = []
+    stats_en = {}
+
+    for src_tr, hyp_en in zip(real_tr, synthetic_en):
+        ok, reason = _pseudo_pair_ok(src_tr, hyp_en, "en", cfg)
+        stats_en[reason] = stats_en.get(reason, 0) + 1
+        if ok:
+            filtered_real_tr.append(src_tr)
+            filtered_synthetic_en.append(hyp_en)
+
+    filtered_synthetic_tr = []
+    filtered_real_en = []
+    stats_tr = {}
+
+    for src_en, hyp_tr in zip(real_en, synthetic_tr):
+        ok, reason = _pseudo_pair_ok(src_en, hyp_tr, "tr", cfg)
+        stats_tr[reason] = stats_tr.get(reason, 0) + 1
+        if ok:
+            filtered_real_en.append(src_en)
+            filtered_synthetic_tr.append(hyp_tr)
+
+    log.info(
+        "Pseudo-filter TR->EN synthetic: kept %d / %d | stats=%s",
+        len(filtered_synthetic_en),
+        len(synthetic_en),
+        stats_en,
+    )
+    log.info(
+        "Pseudo-filter EN->TR synthetic: kept %d / %d | stats=%s",
+        len(filtered_synthetic_tr),
+        len(synthetic_tr),
+        stats_tr,
+    )
+
+    min_pairs = int(filter_cfg.get("min_pairs", 10000))
+    if len(filtered_synthetic_en) < min_pairs or len(filtered_synthetic_tr) < min_pairs:
+        log.warning(
+            "Pseudo-filter kept too few pairs; falling back to unfiltered synthetic data. "
+            "kept_en=%d kept_tr=%d min_pairs=%d",
+            len(filtered_synthetic_en),
+            len(filtered_synthetic_tr),
+            min_pairs,
+        )
+        return synthetic_en, real_tr, synthetic_tr, real_en
+
+    return filtered_synthetic_en, filtered_real_tr, filtered_synthetic_tr, filtered_real_en
 
 
 def translation_loss(model, src, dec_in, dec_tgt, pad_id):
@@ -592,6 +721,14 @@ def main():
             )
         else:
             log.info("Using verified synthetic cache for iteration %d", iteration)
+
+        synthetic_en, real_tr, synthetic_tr, real_en = filter_synthetic_pairs(
+            synthetic_en=synthetic_en,
+            real_tr=real_tr,
+            synthetic_tr=synthetic_tr,
+            real_en=real_en,
+            cfg=cfg,
+        )
 
         metrics = train_iteration(
             cfg=cfg,

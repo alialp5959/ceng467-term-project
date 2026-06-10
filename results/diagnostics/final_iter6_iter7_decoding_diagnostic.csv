@@ -1,0 +1,9 @@
+model,direction,n,empty,copy_like,copy_like_pct,language_hints,avg_max_repeat,avg_unique_ratio
+eval_ibt_200k_v1_iter6_greedy_full,TR->EN,1012,0,368,36.36,"{'en-ish': 20, 'mixed': 949, 'tr-ish': 38, 'unknown': 5}",2.72,0.886
+eval_ibt_200k_v1_iter6_greedy_full,EN->TR,1012,0,829,81.92,"{'mixed': 174, 'unknown': 265, 'en-ish': 256, 'tr-ish': 317}",1.73,0.945
+eval_ibt_200k_v1_iter6_beam4_full,TR->EN,1012,0,460,45.45,"{'en-ish': 17, 'mixed': 945, 'tr-ish': 45, 'unknown': 5}",2.5,0.898
+eval_ibt_200k_v1_iter6_beam4_full,EN->TR,1012,0,865,85.47,"{'mixed': 189, 'unknown': 240, 'en-ish': 315, 'tr-ish': 268}",1.72,0.946
+eval_ibt_200k_v1_iter7_filtered_greedy_full,TR->EN,1012,0,225,22.23,"{'en-ish': 49, 'mixed': 917, 'tr-ish': 39, 'unknown': 7}",2.27,0.903
+eval_ibt_200k_v1_iter7_filtered_greedy_full,EN->TR,1012,0,738,72.92,"{'en-ish': 95, 'unknown': 376, 'tr-ish': 441, 'mixed': 100}",1.59,0.953
+eval_ibt_200k_v1_iter7_filtered_beam4_full,TR->EN,1012,0,296,29.25,"{'en-ish': 35, 'mixed': 913, 'tr-ish': 56, 'unknown': 8}",2.15,0.914
+eval_ibt_200k_v1_iter7_filtered_beam4_full,EN->TR,1012,0,758,74.9,"{'en-ish': 104, 'unknown': 382, 'tr-ish': 424, 'mixed': 102}",1.59,0.954

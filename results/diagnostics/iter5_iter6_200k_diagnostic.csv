@@ -1,0 +1,5 @@
+model,direction,n,empty,copy_like,copy_like_pct,language_hints,avg_max_repeat,avg_unique_ratio
+eval_ibt_wbw_seed_v2_10k_iter5_modelbt_157k_balanced_greedy_full,TR->EN,1012,0,333,32.91,"{'en-ish': 37, 'mixed': 908, 'tr-ish': 62, 'unknown': 5}",2.0,0.923
+eval_ibt_wbw_seed_v2_10k_iter5_modelbt_157k_balanced_greedy_full,EN->TR,1012,0,797,78.75,"{'en-ish': 209, 'unknown': 357, 'mixed': 128, 'tr-ish': 318}",1.68,0.948
+eval_ibt_200k_v1_iter6_greedy_full,TR->EN,1012,0,368,36.36,"{'en-ish': 20, 'mixed': 949, 'tr-ish': 38, 'unknown': 5}",2.72,0.886
+eval_ibt_200k_v1_iter6_greedy_full,EN->TR,1012,0,829,81.92,"{'mixed': 174, 'unknown': 265, 'en-ish': 256, 'tr-ish': 317}",1.73,0.945

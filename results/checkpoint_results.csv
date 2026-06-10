@@ -2,4 +2,4 @@ model,direction,BLEU,chrF,status
 Copy Baseline,TR->EN,2.82,21.16,Complete
 Pretrained MT Reference (Helsinki-NLP/opus-mt-tr-en),TR->EN,30.21,58.97,Complete
 Copy Baseline,EN->TR,2.83,20.02,Complete
-Pretrained MT Reference (Helsinki-NLP/opus-mt-tc-big-en-tr),EN->TR,31.08,61.50,Complete
+Pretrained MT Reference (Helsinki-NLP/opus-mt-tc-big-en-tr),EN->TR,30.93,61.5,Complete
