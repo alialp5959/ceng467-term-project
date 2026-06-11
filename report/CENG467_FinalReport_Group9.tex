@@ -37,7 +37,7 @@ The core translation capability emerges during the IBT phase. The model generate
 
 \section{Experimental Setup}
 \subsection{Baselines}
-We established three baselines: 1) A Copy Baseline, 2) A Word-by-Word translation using MUSE-aligned fastText embeddings, and 3) A fully supervised Helsinki-NLP MarianMT model.
+We established four baselines to contextualize our from-scratch UNMT model: 1) A Copy Baseline as a lower bound, 2) A Word-by-Word dictionary translation using cross-lingual MUSE-aligned fastText embeddings, 3) A zero-shot multilingual pretrained language model baseline using mBART-50 (specifically, \texttt{facebook/mbart-large-50-many-to-many-mmt}), and 4) A fully supervised Helsinki-NLP MarianMT model representing the upper bound.
 
 \subsection{Training Details}
 Training was conducted in Google Colab using GPU acceleration, FP16 mixed precision, and the AdamW optimizer. The pipeline was developed in multiple stages. First, a denoising autoencoder (DAE) was trained to reconstruct corrupted Turkish and English monolingual sentences. Then, iterative back-translation (IBT) was applied to generate synthetic parallel data and gradually improve cross-lingual mapping.
@@ -59,10 +59,17 @@ The best average BLEU score was achieved by the Iteration 6 model trained on the
 \toprule
 \textbf{Model} & \textbf{Decoding} & \textbf{TR$\rightarrow$EN BLEU} & \textbf{TR$\rightarrow$EN chrF} & \textbf{EN$\rightarrow$TR BLEU} & \textbf{EN$\rightarrow$TR chrF} \\
 \midrule
-Iter6 200k & Greedy & 2.60 & \textbf{23.33} & 2.36 & 20.85 \\
-Iter6 200k & Beam 4 & \textbf{2.63} & 23.07 & 2.41 & 20.79 \\
-Iter7 Filtered & Greedy & 2.49 & 22.84 & \textbf{2.50} & 20.85 \\
-Iter7 Filtered & Beam 4 & 2.47 & 22.57 & 2.49 & \textbf{20.87} \\
+\multicolumn{6}{l}{\textit{Baselines \& External References}} \\
+Copy Baseline & -- & 2.82 & 21.16 & 2.83 & 20.02 \\
+MUSE Word-by-Word & -- & 3.25 & 34.63 & 2.46 & 36.00 \\
+mBART-50 (Zero-Shot) & Beam 4 & 30.25 & 58.01 & 18.10 & 52.05 \\
+Helsinki-NLP (Supervised) & Beam 4 & 30.21 & 58.97 & 31.08 & 61.50 \\
+\midrule
+\multicolumn{6}{l}{\textit{Our Unsupervised NMT (UNMT from scratch)}} \\
+Iter6 200k & Greedy & 2.60 & 23.33 & 2.36 & 20.85 \\
+Iter6 200k & Beam 4 & 2.63 & 23.07 & 2.41 & 20.79 \\
+Iter7 Filtered & Greedy & 2.49 & 22.84 & 2.50 & 20.85 \\
+Iter7 Filtered & Beam 4 & 2.47 & 22.57 & 2.49 & 20.87 \\
 \bottomrule
 \end{tabular}
 }
@@ -70,6 +77,8 @@ Iter7 Filtered & Beam 4 & 2.47 & 22.57 & 2.49 & \textbf{20.87} \\
 \end{table}
 
 The results show that the 200k IBT setting improved the model compared to earlier development runs. Iteration 6 produced the strongest overall BLEU performance, especially in the TR$\rightarrow$EN direction. The filtered Iteration 7 model improved EN$\rightarrow$TR BLEU, but it slightly reduced TR$\rightarrow$EN performance. Therefore, Iteration 6 with beam search is selected as the score-best model, while Iteration 7 is analyzed as a copy-reduction ablation.
+
+Importantly, our zero-shot mBART-50 baseline achieves 30.25 BLEU for TR$\rightarrow$EN, matching and slightly exceeding the supervised Helsinki-NLP reference (30.21 BLEU) without any parallel fine-tuning. For EN$\rightarrow$TR, the zero-shot mBART-50 baseline achieves 18.10 BLEU, which is below the supervised reference (31.08 BLEU) but significantly outperforms our from-scratch UNMT model (2.50 BLEU).
 
 \subsection{Effect of Filtered Iterative Back-Translation}
 
@@ -115,7 +124,7 @@ A key observation is that automatic BLEU improvement and actual translation qual
 The main limitations of this work are:
 \begin{enumerate}
     \item \textbf{Limited model and data scale:} The Transformer model is lightweight compared with modern multilingual NMT systems, and the final dataset contains 200k monolingual sentences per language.
-    \item \textbf{No multilingual pretraining:} The system learns cross-lingual alignment only from DAE and IBT objectives. Modern UNMT systems usually rely on strong cross-lingual pretraining such as XLM, mBART, or mT5.
+    \item \textbf{No multilingual pretraining:} The system learns cross-lingual alignment only from DAE and IBT objectives. Modern UNMT systems usually rely on strong cross-lingual pretraining such as XLM, mBART, or mT5. This limitation is clearly demonstrated by our mBART-50 baseline which achieves 30.25 BLEU on TR$\rightarrow$EN without any task-specific parallel or back-translation training, compared to 2.63 BLEU for our from-scratch model.
     \item \textbf{No true parallel supervision:} The absence of parallel training data makes semantic alignment unstable, especially for distant languages.
     \item \textbf{Noisy web text:} CC-100 contains noisy, domain-imbalanced, and sometimes incomplete web sentences. This affects both language modeling and synthetic data quality.
 \end{enumerate}
