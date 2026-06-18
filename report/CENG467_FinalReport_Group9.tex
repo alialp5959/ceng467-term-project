@@ -115,9 +115,42 @@ Iter7 Filtered & Beam 4 & 29.25\% & 74.90\% \\
 \label{tab:copy-diagnostics}
 \end{table}
 
+\begin{table}[htbp]
+\centering
+\caption{Qualitative translation examples on FLORES-200 devtest comparing Iteration 6 and 7.}
+\label{tab:sample-translations}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lp{10cm}}
+\toprule
+\textbf{System / Model} & \textbf{Translation Output} \\
+\midrule
+\multicolumn{2}{l}{\textbf{Example 1: Turkish to English (TR $\rightarrow$ EN)}} \\
+\textit{Source} & Daha önce diyabetik olup şimdi diyabetik olmayan 4 aylık farelerimiz var, diye ekledi. \\
+\textit{Reference} & ``We now have 4-month-old mice that are non-diabetic that used to be diabetic,'' he added. \\
+\textit{Iter6 Beam 4} & The past before diyabetiks are now diyabetiked by the 4 aylık farelerimiz here, to see the ekledi. \\
+\textit{Iter7 Filtered} & The before diyabetiks are now diyabetiked by 4 aylık fares here, to see the ekledi. \\
+\textit{mBART-50 (Zero-Shot)} & We've had four months of rats before, which were not diabetic. \\
+\midrule
+\multicolumn{2}{l}{\textbf{Example 2: Turkish to English (TR $\rightarrow$ EN)}} \\
+\textit{Source} & WiFi ile çalışan bir kapı zili yaptığını söyledi. \\
+\textit{Reference} & He built a WiFi door bell, he said. \\
+\textit{Iter6 Beam 4} & WiFi with the çalışan to kapı zilis yaptığını söyledi. \\
+\textit{Iter7 Filtered} & WiFi with the çalışan it kapı zilied out. \\
+\midrule
+\multicolumn{2}{l}{\textbf{Example 3: English to Turkish (EN $\rightarrow$ TR)}} \\
+\textit{Source} & Like some other experts, he is skeptical about whether diabetes can be cured, noting that these findings have no relevance to people who already have Type 1 diabetes. \\
+\textit{Reference} & Bazı diğer uzmanlar gibi o da, bu bulguların zaten Tip 1 diyabeti olan kişilerle bir ilişkisi olmadığına dikkat çekerek diyabetin tedavi edilebileceği ile ilgili şüpheci kalmıştır. \\
+\textit{Iter6 Beam 4} & Like bazı diğer experts, he is skeptical hakkında whether diabetes can be cured, notları içinde findings have no relevance insanlarda bile Type 1 diabetes. \\
+\textit{Iter7 Filtered} & Like bazı diğer experts, hiç skeptical hakkında whether diabetes canı cured, notları içinde findings pek çok relevance insanlar bile Type 1 diabetes. \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
 The diagnostic results confirm that the filtered IBT step substantially reduced copying. In TR$\rightarrow$EN, the copy-like ratio decreased from 36.36\% in Iteration 6 greedy decoding to 22.23\% in Iteration 7 filtered greedy decoding. In EN$\rightarrow$TR, the ratio decreased from 81.92\% to 72.92\%. This supports the conclusion that synthetic data filtering improves the quality of the training signal, even if it does not always maximize BLEU.
 
-Beyond copy-like behavior, manual inspection of sampled outputs reveals three recurring error categories:
+Beyond copy-like behavior, manual inspection of sampled outputs (with concrete examples shown in Table~\ref{tab:sample-translations}) reveals three recurring error categories:
 \begin{itemize}
     \item \textbf{Source-copying and mixed-language outputs:} The model frequently preserves source-side words, producing code-switched text. For example, the Turkish input \textit{``Korsanlar taraf\i{}ndan soyuldu, Tibet'te kuduz bir k\"opek taraf\i{}ndan sald\i{}r\i{}ya u\u{g}rad\i{}''} is rendered as \textit{``Korsanlar by soyuldu, Tibet's kuduz a k\"opek by sald\i{}r\i{}ya u\u{g}rad\i{}''}, mixing Turkish lexical items with English function words.
     \item \textbf{Morphological errors:} Turkish agglutinative morphology generates many surface forms that are difficult to learn from noisy monolingual data. The model often produces malformed suffixes or strips inflectional morphemes entirely.
