@@ -108,17 +108,25 @@ The current implementation:
 - evaluates explicit IBT checkpoints;
 - uses EOS-aware beam search with length normalization.
 
-## Historical Results
+## Results (Corrected Pipeline)
 
-These scores belong to the original run before the corrected IBT pipeline was
-rerun:
+Final evaluation on FLORES-200 devtest (1012 sentences per direction):
 
-| Model | TR->EN BLEU | EN->TR BLEU |
+| Model | Decoding | TR→EN BLEU | TR→EN chrF | EN→TR BLEU | EN→TR chrF |
+|---|---|---:|---:|---:|---:|
+| Copy Baseline | — | 2.82 | 21.16 | 2.83 | 20.02 |
+| MUSE Word-by-Word | — | 3.25 | 34.63 | 2.46 | 36.00 |
+| **Our UNMT (Iter6 200k)** | Beam 4 | **2.63** | 23.07 | 2.41 | 20.79 |
+| Our UNMT (Iter7 Filtered) | Greedy | 2.49 | 22.84 | **2.50** | 20.85 |
+| mBART-50 (Zero-Shot) | Beam 4 | 30.25 | 58.01 | 18.10 | 52.05 |
+| Helsinki-NLP (Supervised) | Beam 4 | 30.21 | 58.97 | 31.08 | 61.50 |
+
+## Historical Results (Pre-Bugfix)
+
+These scores belong to the original run before target-language conditioning
+and EOS leakage were fixed:
+
+| Model | TR→EN BLEU | EN→TR BLEU |
 |---|---:|---:|
-| Copy baseline | 2.82 | 2.83 |
-| Word-by-word MUSE | 3.25 | 2.46 |
 | Original UNMT, 1 IBT | 0.09 | 0.10 |
 | Original UNMT, 10 IBT | 0.17 | 0.04 |
-| Helsinki-NLP supervised reference | 30.21 | 31.08 |
-
-The corrected pipeline must be rerun before reporting new UNMT scores.

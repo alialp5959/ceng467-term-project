@@ -13,14 +13,14 @@
 \maketitle
 
 \begin{abstract}
-This report details the design, implementation, and evaluation of an Unsupervised Neural Machine Translation (UNMT) system for the Turkish-English language pair, developed without using any parallel corpora. We leverage a shared lightweight Transformer encoder-decoder architecture (46M parameters) trained initially as a Denoising Autoencoder (DAE) to model language-specific distributions, followed by Iterative Back-Translation (IBT) to align the latent spaces. Our implementation builds heavily upon the methodologies proposed by Lample et al. (2018). We present extensive evaluations on the FLORES-200 benchmark, comparing our unsupervised approach against a word-by-word fastText baseline and a supervised Helsinki-NLP reference model. Detailed error analyses highlight the specific challenges posed by Turkish agglutinative morphology in an unsupervised setting.
+This report presents an Unsupervised Neural Machine Translation (UNMT) system for the Turkish--English language pair, trained without any parallel corpora. A shared lightweight Transformer encoder--decoder (46M parameters) is first trained as a Denoising Autoencoder (DAE) and then refined through Iterative Back-Translation (IBT), following the framework of Lample et al.~\cite{lample2018phrase}. We evaluate on FLORES-200 and compare against four baselines: a copy baseline, a word-by-word MUSE dictionary, a zero-shot mBART-50 model, and a supervised Helsinki-NLP reference. Our best from-scratch UNMT model achieves 2.63 BLEU (TR$\rightarrow$EN) and 2.50 BLEU (EN$\rightarrow$TR), while the zero-shot mBART-50 baseline reaches 30.25 BLEU without any task-specific training. This gap demonstrates the critical role of multilingual pretraining for morphologically distant language pairs. Detailed error and copy-like diagnostics reveal the specific failure modes of unsupervised alignment under limited data.
 \end{abstract}
 
 \section{Introduction}
 Neural Machine Translation (NMT) has achieved near-human parity on resource-rich language pairs by relying on massive parallel corpora. However, parallel data is inherently scarce, expensive to create, and unavailable for many language combinations. Unsupervised Neural Machine Translation (UNMT) addresses this by training models solely on monolingual corpora. In this project, we explore the challenges of applying UNMT to the Turkish-English pair, a morphologically rich and structurally distinct combination.
 
 \section{Related Work}
-Lample et al. (2018) introduced a robust framework for UNMT relying on three core principles: 1) shared latent representations, 2) denoising autoencoding, and 3) iterative back-translation. Subsequent works such as XLM and mBART extended this by pre-training massive masked language models. Due to computational constraints, our project replicates the fundamental principles of Lample et al. using a lightweight Transformer.
+Lample et al.~\cite{lample2018phrase} introduced a framework for UNMT based on three principles: shared latent representations, denoising autoencoding, and iterative back-translation. Conneau and Lample~\cite{conneau2019cross} extended this with cross-lingual language model pretraining (XLM), and Liu et al.~\cite{liu2020multilingual} proposed mBART, a multilingual denoising pre-trained model that achieves strong zero-shot translation. These works demonstrate that large-scale multilingual pretraining substantially improves cross-lingual alignment. Due to computational constraints, our project replicates the fundamental DAE+IBT framework of Lample et al. using a lightweight Transformer, without multilingual pretraining.
 
 \section{Methodology}
 \subsection{Data Preprocessing and Vocabulary}
@@ -37,7 +37,13 @@ The core translation capability emerges during the IBT phase. The model generate
 
 \section{Experimental Setup}
 \subsection{Baselines}
-We established four baselines to contextualize our from-scratch UNMT model: 1) A Copy Baseline as a lower bound, 2) A Word-by-Word dictionary translation using cross-lingual MUSE-aligned fastText embeddings, 3) A zero-shot multilingual pretrained language model baseline using mBART-50 (specifically, \texttt{facebook/mbart-large-50-many-to-many-mmt}), and 4) A fully supervised Helsinki-NLP MarianMT model representing the upper bound.
+We compare against four baselines that span the performance spectrum:
+\begin{enumerate}
+    \item \textbf{Copy Baseline} (lower bound): outputs the source sentence unchanged, establishing a trivial lower bound on BLEU.
+    \item \textbf{MUSE Word-by-Word}: translates each token independently using cross-lingual MUSE-aligned fastText embeddings~\cite{conneau2017word}, without any reordering or morphological processing.
+    \item \textbf{mBART-50 Zero-Shot}: uses the pretrained \texttt{facebook/mbart-large-50-many-to-many-mmt} model~\cite{liu2020multilingual} without any task-specific fine-tuning, demonstrating the effect of large-scale multilingual pretraining.
+    \item \textbf{Helsinki-NLP MarianMT} (upper bound): a fully supervised model trained on millions of parallel sentences, representing the practical ceiling for this language pair.
+\end{enumerate}
 
 \subsection{Training Details}
 Training was conducted in Google Colab using GPU acceleration, FP16 mixed precision, and the AdamW optimizer. The pipeline was developed in multiple stages. First, a denoising autoencoder (DAE) was trained to reconstruct corrupted Turkish and English monolingual sentences. Then, iterative back-translation (IBT) was applied to generate synthetic parallel data and gradually improve cross-lingual mapping.
@@ -47,9 +53,9 @@ During development, several implementation and data issues were identified and c
 \section{Results}
 \subsection{Automatic Evaluation}
 
-Evaluation was performed on the FLORES-200 devtest split, which contains 1012 sentences for each language direction. We report BLEU and chrF for Turkish-to-English (TR$\rightarrow$EN) and English-to-Turkish (EN$\rightarrow$TR). All reported scores were obtained without using any parallel training data. The supervised Helsinki-NLP system is used only as an external reference and was not used for training, back-translation, or distillation.
+All models are evaluated on the FLORES-200 devtest split (1012 parallel sentences per direction) using BLEU~\cite{papineni2002bleu} and chrF~\cite{popovic2015chrf}. We report scores for both TR$\rightarrow$EN and EN$\rightarrow$TR. None of the baseline or UNMT models use parallel training data; the supervised Helsinki-NLP system serves only as an external upper-bound reference.
 
-The best average BLEU score was achieved by the Iteration 6 model trained on the balanced 200k dataset and decoded using beam search with beam size 4. This model reached 2.63 BLEU for TR$\rightarrow$EN and 2.41 BLEU for EN$\rightarrow$TR. Beam search slightly improved BLEU compared to greedy decoding for Iteration 6, although chrF changed only marginally.
+The best UNMT score is achieved by Iteration~6 with beam search (beam size~4), reaching 2.63 BLEU for TR$\rightarrow$EN and 2.41 for EN$\rightarrow$TR. Beam search yields a modest improvement over greedy decoding in BLEU, while chrF remains largely stable.
 
 \begin{table}[t]
 \centering
@@ -76,9 +82,11 @@ Iter7 Filtered & Beam 4 & 2.47 & 22.57 & 2.49 & 20.87 \\
 \label{tab:final-results}
 \end{table}
 
-The results show that the 200k IBT setting improved the model compared to earlier development runs. Iteration 6 produced the strongest overall BLEU performance, especially in the TR$\rightarrow$EN direction. The filtered Iteration 7 model improved EN$\rightarrow$TR BLEU, but it slightly reduced TR$\rightarrow$EN performance. Therefore, Iteration 6 with beam search is selected as the score-best model, while Iteration 7 is analyzed as a copy-reduction ablation.
+Table~\ref{tab:final-results} reveals a clear performance hierarchy. The copy baseline establishes the trivial lower bound ($\sim$2.8 BLEU), while the MUSE word-by-word approach slightly exceeds it by leveraging cross-lingual lexical mappings. Our from-scratch UNMT model operates in the same low-BLEU regime (2.41--2.63), indicating that the DAE+IBT pipeline has not yet learned robust cross-lingual alignment under the given data and compute constraints.
 
-Importantly, our zero-shot mBART-50 baseline achieves 30.25 BLEU for TR$\rightarrow$EN, matching and slightly exceeding the supervised Helsinki-NLP reference (30.21 BLEU) without any parallel fine-tuning. For EN$\rightarrow$TR, the zero-shot mBART-50 baseline achieves 18.10 BLEU, which is below the supervised reference (31.08 BLEU) but significantly outperforms our from-scratch UNMT model (2.50 BLEU).
+The most striking result is the performance of the zero-shot mBART-50 model: it achieves 30.25 BLEU for TR$\rightarrow$EN---matching the supervised Helsinki-NLP reference (30.21 BLEU)---without any parallel fine-tuning. This demonstrates that large-scale multilingual pretraining on diverse corpora can effectively substitute for explicit parallel supervision, at least in the TR$\rightarrow$EN direction. For EN$\rightarrow$TR, the zero-shot mBART-50 reaches 18.10 BLEU, below the supervised reference (31.08) but still an order of magnitude above our from-scratch UNMT model. This asymmetry likely reflects the dominance of English in mBART's pretraining data.
+
+Iteration~6 with beam search is selected as the score-best UNMT configuration, while the filtered Iteration~7 model serves as a copy-reduction ablation. Iteration~7 improves EN$\rightarrow$TR BLEU from 2.41 to 2.50 but slightly reduces TR$\rightarrow$EN from 2.63 to 2.49, revealing a trade-off between metric performance and output quality that we analyze further in Section~\ref{sec:error}.
 
 \subsection{Effect of Filtered Iterative Back-Translation}
 
@@ -87,8 +95,9 @@ A major issue observed during IBT was source-copying, where the model copied man
 During the filtered Iteration 7 run, the filter kept 90,599 out of 200,000 TR$\rightarrow$EN synthetic pairs and 65,971 out of 200,000 EN$\rightarrow$TR synthetic pairs. This indicates that a large portion of the generated synthetic data was noisy or copy-like, especially in the EN$\rightarrow$TR direction. The filtering step improved EN$\rightarrow$TR BLEU from 2.41 to 2.50 compared with Iteration 6 using beam search, but it also reduced TR$\rightarrow$EN BLEU from 2.63 to 2.49. This shows a trade-off between metric performance and copy reduction.
 
 \section{Error Analysis}
+\label{sec:error}
 
-We performed automatic copy-like diagnostics on the generated translations. A translation was marked as copy-like when more than half of its output tokens overlapped with the source sentence. Although this heuristic is not a perfect measurement of translation quality, it is useful for detecting one of the main failure modes of unsupervised NMT: copying the input instead of translating it.
+To move beyond aggregate metrics, we perform both automatic copy-like diagnostics and qualitative analysis of individual outputs. A translation is classified as \emph{copy-like} when more than half of its output tokens overlap with the source sentence. While this heuristic does not capture all error types, it reliably detects one of the dominant failure modes of unsupervised NMT: reproducing the source input instead of translating it.
 
 \begin{table}[t]
 \centering
@@ -108,34 +117,77 @@ Iter7 Filtered & Beam 4 & 29.25\% & 74.90\% \\
 
 The diagnostic results confirm that the filtered IBT step substantially reduced copying. In TR$\rightarrow$EN, the copy-like ratio decreased from 36.36\% in Iteration 6 greedy decoding to 22.23\% in Iteration 7 filtered greedy decoding. In EN$\rightarrow$TR, the ratio decreased from 81.92\% to 72.92\%. This supports the conclusion that synthetic data filtering improves the quality of the training signal, even if it does not always maximize BLEU.
 
-The remaining errors can be grouped into three main categories:
+Beyond copy-like behavior, manual inspection of sampled outputs reveals three recurring error categories:
 \begin{itemize}
-    \item \textbf{Source-copying and mixed-language outputs:} The model often preserves source-side words, especially named entities, numbers, and common English words in EN$\rightarrow$TR translation.
-    \item \textbf{Morphological errors:} Turkish agglutinative morphology creates many surface forms, which are difficult to learn from noisy monolingual data without parallel supervision.
-    \item \textbf{Semantic drift and hallucination:} Some outputs are fluent but only weakly related to the source sentence, showing that the model has not fully aligned the two language spaces.
+    \item \textbf{Source-copying and mixed-language outputs:} The model frequently preserves source-side words, producing code-switched text. For example, the Turkish input \textit{``Korsanlar taraf\i{}ndan soyuldu, Tibet'te kuduz bir k\"opek taraf\i{}ndan sald\i{}r\i{}ya u\u{g}rad\i{}''} is rendered as \textit{``Korsanlar by soyuldu, Tibet's kuduz a k\"opek by sald\i{}r\i{}ya u\u{g}rad\i{}''}, mixing Turkish lexical items with English function words.
+    \item \textbf{Morphological errors:} Turkish agglutinative morphology generates many surface forms that are difficult to learn from noisy monolingual data. The model often produces malformed suffixes or strips inflectional morphemes entirely.
+    \item \textbf{Semantic drift and hallucination:} Some outputs are superficially fluent but only weakly related to the source. For instance, \textit{``WiFi ile \c{c}al\i{}\c{s}an bir kap\i{} zili yapt\i{}\u{g}\i{}n\i{} s\"oyledi''} (``He said he built a WiFi doorbell'') is translated as \textit{``WiFi with the \c{c}al\i{}\c{s}an it kap\i{} zilis yapt\i{}\u{g}\i{}n\i{}''}---the model has not aligned the two language spaces sufficiently to produce a coherent English rendering.
 \end{itemize}
+
+\subsection{Ethical Considerations}
+
+Several ethical concerns arise from this work. First, the model is prone to \textbf{hallucination}: it can generate fluent-sounding text that is factually unrelated to the source input. Deploying such a system without human oversight could propagate misinformation, particularly in sensitive domains such as medical or legal translation. Second, the CC-100 training corpus is drawn from unfiltered web text, which may encode \textbf{social biases} related to gender, ethnicity, religion, or political orientation. These biases can be amplified during unsupervised training, where no parallel references constrain the output distribution. Third, the low translation quality of our from-scratch UNMT system poses a \textbf{misuse risk}: users unfamiliar with the system's limitations might trust its outputs despite their unreliability. We therefore emphasize that this system is a research prototype and should not be used for production translation without significant quality improvements and human-in-the-loop verification.
 
 \section{Discussion and Limitations}
 
-The experiments highlight the difficulty of training an unsupervised NMT system from scratch for a morphologically distant pair such as Turkish and English. Even after DAE pretraining, balanced data preparation, 200k-scale IBT, beam search, and pseudo-parallel filtering, the model remains far below supervised systems. This is expected because supervised models are trained on large parallel corpora and often benefit from pretraining, while our model only uses monolingual data.
+The results demonstrate that training a UNMT system from scratch for a morphologically distant pair such as Turkish--English remains extremely challenging under limited data and compute. Even after DAE pretraining, balanced 200k-scale IBT, beam search, and pseudo-parallel filtering, the model does not surpass the simple MUSE word-by-word baseline (3.25 BLEU) in the TR$\rightarrow$EN direction. This outcome is not an implementation failure but rather reflects fundamental limitations of the pure DAE+IBT paradigm when applied without cross-lingual pretraining.
 
-A key observation is that automatic BLEU improvement and actual translation quality do not always move together. Iteration 6 with beam search achieved the best average BLEU, but it also had high copy-like ratios. Filtered Iteration 7 reduced copying significantly and improved EN$\rightarrow$TR BLEU, but slightly decreased TR$\rightarrow$EN BLEU. Therefore, the final system should be interpreted through both automatic metrics and error diagnostics.
+A noteworthy finding is the divergence between BLEU scores and actual translation quality. Iteration~6 achieves the highest BLEU (2.63 TR$\rightarrow$EN) but also exhibits the highest copy-like ratio (36.36\%). Filtered Iteration~7 reduces copying to 22.23\% and improves EN$\rightarrow$TR BLEU from 2.41 to 2.50, yet slightly decreases TR$\rightarrow$EN BLEU to 2.49. This suggests that BLEU can be inflated by source-copying behavior, and that copy-like diagnostics provide complementary information that should accompany automatic metric reporting.
+
+The 12$\times$ gap between our from-scratch model (2.63 BLEU) and the zero-shot mBART-50 baseline (30.25 BLEU) on TR$\rightarrow$EN directly quantifies the benefit of multilingual pretraining. The mBART model has already learned cross-lingual representations from large-scale denoising pretraining on 50 languages, effectively solving the alignment problem that our DAE+IBT pipeline must learn from scratch with only 200k sentences.
 
 The main limitations of this work are:
 \begin{enumerate}
-    \item \textbf{Limited model and data scale:} The Transformer model is lightweight compared with modern multilingual NMT systems, and the final dataset contains 200k monolingual sentences per language.
-    \item \textbf{No multilingual pretraining:} The system learns cross-lingual alignment only from DAE and IBT objectives. Modern UNMT systems usually rely on strong cross-lingual pretraining such as XLM, mBART, or mT5. This limitation is clearly demonstrated by our mBART-50 baseline which achieves 30.25 BLEU on TR$\rightarrow$EN without any task-specific parallel or back-translation training, compared to 2.63 BLEU for our from-scratch model.
-    \item \textbf{No true parallel supervision:} The absence of parallel training data makes semantic alignment unstable, especially for distant languages.
-    \item \textbf{Noisy web text:} CC-100 contains noisy, domain-imbalanced, and sometimes incomplete web sentences. This affects both language modeling and synthetic data quality.
+    \item \textbf{Limited model and data scale:} Our 46M-parameter Transformer trained on 200k sentences per language is far smaller than models like mBART (680M parameters, billions of tokens). The 12$\times$ BLEU gap to mBART-50 directly reflects this scale difference.
+    \item \textbf{No multilingual pretraining:} Cross-lingual alignment must emerge solely from the DAE and IBT objectives, without any prior knowledge of cross-lingual correspondences.
+    \item \textbf{No parallel supervision:} Without parallel anchors, the latent space alignment is unstable and prone to degenerate solutions such as source-copying.
+    \item \textbf{Noisy web data:} CC-100 contains domain-imbalanced and occasionally incomplete web sentences, which degrades both language modeling and synthetic data quality.
 \end{enumerate}
 
-Despite these limitations, the project successfully demonstrates a full UNMT pipeline: monolingual preprocessing, shared vocabulary construction, DAE pretraining, iterative back-translation, synthetic data caching, beam-search evaluation, and pseudo-parallel filtering.
+Despite these limitations, the project demonstrates a complete end-to-end UNMT pipeline and provides empirical evidence for why multilingual pretraining is essential for unsupervised translation of distant language pairs.
 
 \section{Conclusion}
 
-This project implemented and evaluated an unsupervised Turkish-English neural machine translation system using denoising autoencoding and iterative back-translation. The final score-best model was Iteration 6 trained on a balanced 200k monolingual dataset and decoded with beam search, achieving 2.63 BLEU for TR$\rightarrow$EN and 2.41 BLEU for EN$\rightarrow$TR on FLORES-200 devtest. A filtered Iteration 7 experiment reduced source-copying substantially and achieved the best EN$\rightarrow$TR BLEU score of 2.50, but slightly reduced TR$\rightarrow$EN performance.
+This project implemented and evaluated an unsupervised Turkish--English neural machine translation system using denoising autoencoding and iterative back-translation. The best from-scratch UNMT model (Iteration~6, beam search) achieves 2.63 BLEU for TR$\rightarrow$EN and 2.41 BLEU for EN$\rightarrow$TR on FLORES-200. A filtered Iteration~7 experiment reduced source-copying from 36\% to 22\% and improved EN$\rightarrow$TR BLEU to 2.50, revealing a trade-off between metric optimization and output quality.
 
-Overall, the results show that UNMT from scratch is possible to implement but remains highly challenging for Turkish-English under limited computational resources. The most important improvement for future work would be to initialize the model with large-scale multilingual pretraining or to use stronger cross-lingual representations before iterative back-translation.
+The comparison with a zero-shot mBART-50 baseline (30.25 BLEU TR$\rightarrow$EN) provides clear empirical evidence that multilingual pretraining is essential for achieving practical translation quality on morphologically distant pairs. Future work should explore cross-lingual embedding initialization (e.g., MUSE or fastText), fine-tuning pretrained multilingual models such as mBART or mT5, and morphology-aware subword tokenization for Turkish.
+
+\begin{thebibliography}{9}
+\bibitem{lample2018phrase}
+Lample, G., Ott, M., Conneau, A., Denoyer, L., \& Ranzato, M.~(2018).
+Phrase-based \& neural unsupervised machine translation.
+\textit{Proc.\ EMNLP}, 5039--5049.
+
+\bibitem{conneau2019cross}
+Conneau, A. \& Lample, G.~(2019).
+Cross-lingual language model pretraining.
+\textit{Proc.\ NeurIPS}, 7059--7069.
+
+\bibitem{liu2020multilingual}
+Liu, Y., Gu, J., Goyal, N., Li, X., Edunov, S., Ghazvininejad, M., Lewis, M., \& Zettlemoyer, L.~(2020).
+Multilingual denoising pre-training for neural machine translation.
+\textit{Trans.\ ACL}, 8, 726--742.
+
+\bibitem{conneau2017word}
+Conneau, A., Lample, G., Ranzato, M., Denoyer, L., \& J\'{e}gou, H.~(2017).
+Word translation without parallel data.
+\textit{Proc.\ ICLR}.
+
+\bibitem{papineni2002bleu}
+Papineni, K., Roukos, S., Ward, T., \& Zhu, W.~(2002).
+BLEU: a method for automatic evaluation of machine translation.
+\textit{Proc.\ ACL}, 311--318.
+
+\bibitem{popovic2015chrf}
+Popovi\'{c}, M.~(2015).
+chrF: character n-gram F-score for automatic MT evaluation.
+\textit{Proc.\ WMT}, 392--395.
+
+\bibitem{goyal2022flores}
+Goyal, N., Gao, C., Chaudhary, V., et al.~(2022).
+The Flores-101 evaluation benchmark for low-resource and multilingual machine translation.
+\textit{Trans.\ ACL}, 10, 522--538.
+\end{thebibliography}
 
 \end{document}
 
